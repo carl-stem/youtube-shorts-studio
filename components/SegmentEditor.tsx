@@ -22,7 +22,7 @@ interface Props {
 }
 
 const inputCls =
-  'w-full px-2 py-1.5 rounded-lg bg-[#12131a] border border-slate-700 text-white mono text-xs focus:outline-none focus:border-indigo-500 transition';
+  'w-full px-2 py-2 rounded-lg bg-[#12131a] border border-slate-700 text-white mono text-sm focus:outline-none focus:border-indigo-500 transition min-h-[44px]';
 
 export default function SegmentEditor({
   segments, isManual, hasAudio, isRendering, isPreviewPlaying,
@@ -81,7 +81,7 @@ export default function SegmentEditor({
                 <button
                   onClick={() => onDeleteSegment(idx)}
                   title="Remove segment"
-                  className="text-slate-500 hover:text-rose-400 transition cursor-pointer px-1 leading-none text-sm"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-rose-400 transition cursor-pointer rounded-lg hover:bg-rose-500/10"
                 >
                   ✕
                 </button>
@@ -94,6 +94,7 @@ export default function SegmentEditor({
                     value={seg.start}
                     min={0}
                     step={0.1}
+                    inputMode="decimal"
                     className={inputCls}
                     onChange={(e) => onSegmentChange(idx, 'start', parseFloat(e.target.value) || 0)}
                   />
@@ -106,6 +107,7 @@ export default function SegmentEditor({
                     min={1}
                     max={60}
                     step={0.1}
+                    inputMode="decimal"
                     className={inputCls}
                     onChange={(e) => onSegmentChange(idx, 'duration', Math.max(1, Math.min(60, parseFloat(e.target.value) || 1)))}
                   />
@@ -115,14 +117,14 @@ export default function SegmentEditor({
                 <button
                   onClick={() => onPreviewSegment(seg)}
                   disabled={isRendering}
-                  className="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer disabled:opacity-40"
+                  className="flex-1 min-h-[44px] py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer disabled:opacity-40 text-sm"
                 >
                   ▷ Preview
                 </button>
                 <button
                   onClick={() => onRenderSegment(seg)}
                   disabled={isRendering}
-                  className="flex-1 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 transition cursor-pointer disabled:opacity-40"
+                  className="flex-1 min-h-[44px] py-2 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 transition cursor-pointer disabled:opacity-40 text-sm"
                 >
                   ⬇ Export
                 </button>

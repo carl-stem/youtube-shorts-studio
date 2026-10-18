@@ -67,6 +67,8 @@ export default function Studio() {
     `[${timestamp()}] Ready. Load a .wav audio file and album cover above to begin.`,
   ]);
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
+  // feature support (checked client-side on mount)
+  const [canRecord, setCanRecord] = useState<boolean>(true);
 
   // ── canvas & audio refs (animation loop reads these directly) ──
   const canvasRef          = useRef<HTMLCanvasElement>(null);
@@ -106,7 +108,7 @@ export default function Studio() {
     setLogs((prev) => [...prev.slice(-300), `[${timestamp()}] ${msg}`]);
   }, []);
 
-  // ── initialise blurred bg canvas ──
+  // ── initialise blurred bg canvas + feature detection ──
   useEffect(() => {
     const bg = document.createElement('canvas');
     bg.width = SHORTS_WIDTH; bg.height = SHORTS_HEIGHT;
@@ -116,6 +118,14 @@ export default function Studio() {
       coverRef.current = img;
       updateBlurredBackground(bg, img);
     });
+
+    // Feature-detect export capabilities
+    const testCanvas = document.createElement('canvas');
+    const supported =
+      typeof MediaRecorder !== 'undefined' &&
+      typeof testCanvas.captureStream === 'function' &&
+      typeof AudioContext !== 'undefined';
+    setCanRecord(supported);
   }, []);
 
   // ── animation loop ──
@@ -154,6 +164,19 @@ export default function Studio() {
     return () => cancelAnimationFrame(animFrameRef.current);
   }, [loop]);
 
+  // ── pause animation loop when tab is hidden to save battery ──
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden) {
+        cancelAnimationFrame(animFrameRef.current);
+      } else {
+        animFrameRef.current = requestAnimationFrame(loop);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [loop]);
+
   // ── preview ──
   const stopPreviewInternal = useCallback(() => {
     try { sourceRef.current?.stop(); } catch (_) {}
@@ -163,7 +186,7 @@ export default function Studio() {
     setIsPreviewPlaying(false);
   }, []);
 
-  const startPreview = useCallback((startOffset: number, clipDur: number) => {
+  const startPreview = useCallback(async (startOffset: number, clipDur: number) => {
     stopPreviewInternal();
     const buf = audioBufferRef.current;
     if (!buf) return;
@@ -171,11 +194,9 @@ export default function Studio() {
     if (!audioCtxRef.current) {
       audioCtxRef.current = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
     }
-    if (!audioCtxRef.current) {
-      audioCtxRef.current = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
-    }
     const ac = audioCtxRef.current!;
-    if (ac.state === 'suspended') ac.resume();
+    // iOS/Safari: AudioContext starts suspended until a user gesture resumes it
+    if (ac.state === 'suspended') await ac.resume().catch(() => {});
 
     segOffsetRef.current = startOffset;
     const src    = ac.createBufferSource();
@@ -459,9 +480,25 @@ export default function Studio() {
     <div className="min-h-screen flex flex-col">
       <Header codecLabel={`Export: .${detectedFormat.ext.toUpperCase()}`} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* LEFT COLUMN */}
-        <div className="lg:col-span-7 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+        {/*
+          Mobile: canvas appears FIRST (order-first), controls scroll below.
+          Sticky canvas stays visible as user scrolls through controls.
+          Desktop (lg): controls left (order-last resets to DOM flow),
+          canvas right via lg:order-last.
+        */}
+        <div className="lg:col-span-5 order-first lg:order-last flex flex-col items-center">
+          <CanvasPreview
+            canvasRef={canvasRef}
+            previewTimeStr={previewTimeStr}
+            isPreviewPlaying={isPreviewPlaying}
+            isRendering={isRendering}
+            canRecord={canRecord}
+            onTogglePreview={togglePreview}
+          />
+        </div>
+
+        <div className="lg:col-span-7 order-last lg:order-first space-y-6">
           <MediaUploader
             audio={audioFile}
             image={imageFile}
@@ -496,15 +533,6 @@ export default function Studio() {
 
           <ConsoleLog logs={logs} onClear={() => setLogs([])} />
         </div>
-
-        {/* RIGHT COLUMN */}
-        <CanvasPreview
-          canvasRef={canvasRef}
-          previewTimeStr={previewTimeStr}
-          isPreviewPlaying={isPreviewPlaying}
-          isRendering={isRendering}
-          onTogglePreview={togglePreview}
-        />
       </main>
     </div>
   );

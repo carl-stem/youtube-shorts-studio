@@ -1,9 +1,16 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'YouTube Shorts Studio',
   description: '1080×1920 Vertical Video Generator with Live Audio Spectrum',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,      // keep zoom accessible; fix fonts instead of disabling zoom
+  viewportFit: 'cover', // allow content behind notch
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

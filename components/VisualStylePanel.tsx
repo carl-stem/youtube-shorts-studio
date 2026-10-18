@@ -14,7 +14,7 @@ const inputCls =
   'w-full px-3.5 py-2.5 rounded-xl bg-[#0e1017] border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500 transition';
 
 const toggleCls =
-  'flex items-center gap-2.5 cursor-pointer select-none bg-[#0e1017] border border-slate-800 rounded-xl px-3 py-2';
+  'flex items-center gap-2.5 cursor-pointer select-none bg-[#0e1017] border border-slate-800 rounded-xl px-3 py-3 min-h-[44px]';
 
 export default function VisualStylePanel({ vizConfig, onChange }: Props) {
   const set = <K extends keyof VizConfig>(key: K, value: VizConfig[K]) =>

@@ -36,6 +36,7 @@ export default function MediaUploader({ audio, image, srt, onAudioChange, onImag
           </div>
           <span className="text-sm font-medium text-slate-200 line-clamp-1">{audio.name}</span>
           <span className="text-xs text-slate-400 mt-1">{audio.meta}</span>
+          <span className="text-[10px] text-slate-600 mt-0.5 lg:hidden">Tap to choose</span>
         </label>
 
         {/* Image */}

@@ -43,6 +43,7 @@ export default function TrackSettings({ trackMeta, onChange }: Props) {
           <label className="block text-xs font-medium text-slate-300 mb-1.5">Clip Length (Seconds per Short)</label>
           <input
             type="number"
+            inputMode="decimal"
             className={inputCls}
             value={trackMeta.clipDuration}
             min={5} max={60}
@@ -53,6 +54,7 @@ export default function TrackSettings({ trackMeta, onChange }: Props) {
           <label className="block text-xs font-medium text-slate-300 mb-1.5">Max Shorts Limit (Optional)</label>
           <input
             type="number"
+            inputMode="numeric"
             className={inputCls}
             value={trackMeta.maxShorts ?? ''}
             placeholder="All parts"

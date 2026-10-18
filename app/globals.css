@@ -9,3 +9,17 @@ body { font-family: 'Inter', 'Segoe UI', sans-serif; }
 ::-webkit-scrollbar-track { background: #12131a; }
 ::-webkit-scrollbar-thumb { background: #2e3244; border-radius: 9999px; }
 ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+/* ── iOS auto-zoom prevention ─────────────────────────────────────────────
+   Safari zooms in whenever a focused input has font-size < 16px.
+   This override keeps the visual size unchanged on desktop while
+   satisfying the 16px minimum on mobile. */
+@media (max-width: 767px) {
+  input, select, textarea { font-size: 16px !important; }
+}
+
+/* ── Safe-area insets for notched / Dynamic-Island phones ─────────────── */
+.pb-safe  { padding-bottom: max(1.5rem, env(safe-area-inset-bottom)); }
+.pt-safe  { padding-top:    max(0px, env(safe-area-inset-top)); }
+.pl-safe  { padding-left:   max(1rem, env(safe-area-inset-left)); }
+.pr-safe  { padding-right:  max(1rem, env(safe-area-inset-right)); }

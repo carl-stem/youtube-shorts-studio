@@ -7,25 +7,46 @@ interface Props {
   previewTimeStr: string;
   isPreviewPlaying: boolean;
   isRendering: boolean;
+  canRecord: boolean;
   onTogglePreview: () => void;
 }
 
 export default function CanvasPreview({
-  canvasRef, previewTimeStr, isPreviewPlaying, isRendering, onTogglePreview,
+  canvasRef, previewTimeStr, isPreviewPlaying, isRendering, canRecord, onTogglePreview,
 }: Props) {
   return (
-    <div className="lg:col-span-5 flex flex-col items-center">
-      <div className="sticky top-24 w-full max-w-[360px] flex flex-col items-center">
-        <div className="w-full flex items-center justify-between mb-2 px-1">
+    <div className="w-full flex flex-col items-center">
+      {/* Sticky wrapper — on desktop this keeps the canvas in view while scrolling controls.
+          On mobile the canvas is at the top so it's naturally visible first. */}
+      <div className="sticky top-[64px] w-full flex flex-col items-center">
+
+        {/* iOS/unsupported browser warning */}
+        {!canRecord && (
+          <div className="w-full mb-3 px-3 py-2.5 rounded-xl bg-amber-900/40 border border-amber-500/40 text-xs text-amber-300 flex items-start gap-2">
+            <span className="text-base leading-none shrink-0">⚠️</span>
+            <span>
+              <strong>Export not supported</strong> in this browser. Try Chrome or Edge on desktop.
+              Live preview still works.
+            </span>
+          </div>
+        )}
+
+        {/* Time + live indicator */}
+        <div className="w-full flex items-center justify-between mb-2 px-1
+                        max-w-[260px] sm:max-w-[320px] lg:max-w-none">
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${isPreviewPlaying || isRendering ? 'bg-rose-400 animate-pulse' : 'bg-emerald-400'}`} />
-            Live 9:16 Canvas (1080×1920)
+            <span className="hidden sm:inline">Live 9:16 Canvas</span>
+            <span className="sm:hidden">Preview</span>
+            <span className="text-slate-600 hidden lg:inline">(1080×1920)</span>
           </span>
           <span className="text-xs mono text-slate-400">{previewTimeStr}</span>
         </div>
 
-        <div className="relative w-full aspect-[9/16] rounded-[28px] p-2 bg-gradient-to-b from-slate-700 via-slate-800 to-slate-900 shadow-2xl shadow-black">
-          <div className="w-full h-full rounded-[22px] overflow-hidden bg-black relative">
+        {/* Phone bezel — capped smaller on mobile so it doesn't dominate the screen */}
+        <div className="relative rounded-[28px] p-2 bg-gradient-to-b from-slate-700 via-slate-800 to-slate-900 shadow-2xl shadow-black
+                        w-full max-w-[260px] sm:max-w-[320px] lg:max-w-[360px]">
+          <div className="w-full h-full rounded-[22px] overflow-hidden bg-black aspect-[9/16]">
             <canvas
               ref={canvasRef}
               width={1080}
@@ -35,21 +56,13 @@ export default function CanvasPreview({
           </div>
         </div>
 
-        <div className="mt-4 w-full bg-[#161822]/90 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 space-y-1">
-          <div className="font-semibold text-slate-200">Tips & Info:</div>
-          <p>
-            <strong className="text-indigo-300">Live Preview:</strong> Edit title, artist, or cover art and see changes immediately at 60 FPS.
-          </p>
-          <p>
-            <strong className="text-indigo-300">Editable Segments:</strong> Adjust start/duration per clip, add or delete segments freely.
-          </p>
-          <p>
-            <strong className="text-indigo-300">Export:</strong> Web{' '}
-            <span className="mono">MediaRecorder</span> records in real-time (1× speed). For batch jobs, render overnight.
-          </p>
-          <p>
-            <strong className="text-indigo-300">SRT / CC:</strong> Upload an SRT file to burn in timed subtitles on every clip.
-          </p>
+        {/* Tips — hidden on mobile to preserve vertical space */}
+        <div className="hidden lg:block mt-4 w-full bg-[#161822]/90 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 space-y-1 max-w-[360px]">
+          <div className="font-semibold text-slate-200">Tips &amp; Info:</div>
+          <p><strong className="text-indigo-300">Live Preview:</strong> Edit title, cover, or style — see changes instantly at 60 fps.</p>
+          <p><strong className="text-indigo-300">Editable Segments:</strong> Adjust start/duration per clip, add or delete freely.</p>
+          <p><strong className="text-indigo-300">Export:</strong> <span className="mono">MediaRecorder</span> records in real-time (1× speed).</p>
+          <p><strong className="text-indigo-300">SRT / CC:</strong> Upload an SRT file to burn timed subtitles into every clip.</p>
         </div>
       </div>
     </div>
