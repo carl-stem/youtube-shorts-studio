@@ -8,21 +8,21 @@ interface Props {
 }
 
 const inputCls =
-  'w-full px-3.5 py-2.5 rounded-xl bg-[#0e1017] border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500 transition';
+  'w-full px-3.5 py-2.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border-input)] text-[var(--text-1)] text-sm focus:outline-none focus:border-indigo-500 transition';
 
 export default function TrackSettings({ trackMeta, onChange }: Props) {
   const set = (key: keyof TrackMeta, value: string | number | null) =>
     onChange({ ...trackMeta, [key]: value });
 
   return (
-    <section className="bg-[#161822] border border-slate-800/80 rounded-2xl p-5 shadow-xl">
+    <section className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-5 shadow-xl">
       <h2 className="text-sm font-semibold uppercase tracking-wider text-indigo-400 mb-4 flex items-center gap-2">
         <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs">2</span>
         Track Overlay & Slicing Options
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-slate-300 mb-1.5">Track Title (On-Screen)</label>
+          <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">Track Title (On-Screen)</label>
           <input
             className={inputCls}
             value={trackMeta.title}
@@ -31,7 +31,7 @@ export default function TrackSettings({ trackMeta, onChange }: Props) {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-300 mb-1.5">Artist Name</label>
+          <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">Artist Name</label>
           <input
             className={inputCls}
             value={trackMeta.artist}
@@ -40,7 +40,7 @@ export default function TrackSettings({ trackMeta, onChange }: Props) {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-300 mb-1.5">Clip Length (Seconds per Short)</label>
+          <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">Clip Length (Seconds per Short)</label>
           <input
             type="number"
             inputMode="decimal"
@@ -51,7 +51,7 @@ export default function TrackSettings({ trackMeta, onChange }: Props) {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-300 mb-1.5">Max Shorts Limit (Optional)</label>
+          <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">Max Shorts Limit (Optional)</label>
           <input
             type="number"
             inputMode="numeric"

@@ -34,13 +34,13 @@ export default function CanvasPreview({
         {/* Time + live indicator */}
         <div className="w-full flex items-center justify-between mb-2 px-1
                         max-w-[260px] sm:max-w-[320px] lg:max-w-none">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-2)] flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${isPreviewPlaying || isRendering ? 'bg-rose-400 animate-pulse' : 'bg-emerald-400'}`} />
             <span className="hidden sm:inline">Live 9:16 Canvas</span>
             <span className="sm:hidden">Preview</span>
             <span className="text-slate-600 hidden lg:inline">(1080×1920)</span>
           </span>
-          <span className="text-xs mono text-slate-400">{previewTimeStr}</span>
+          <span className="text-xs mono text-[var(--text-2)]">{previewTimeStr}</span>
         </div>
 
         {/* Phone bezel — capped smaller on mobile so it doesn't dominate the screen */}
@@ -57,8 +57,8 @@ export default function CanvasPreview({
         </div>
 
         {/* Tips — hidden on mobile to preserve vertical space */}
-        <div className="hidden lg:block mt-4 w-full bg-[#161822]/90 border border-slate-800/80 rounded-xl p-3.5 text-xs text-slate-400 space-y-1 max-w-[360px]">
-          <div className="font-semibold text-slate-200">Tips &amp; Info:</div>
+        <div className="hidden lg:block mt-4 w-full bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl p-3.5 text-xs text-[var(--text-2)] space-y-1 max-w-[360px]">
+          <div className="font-semibold text-[var(--text-1)]">Tips &amp; Info:</div>
           <p><strong className="text-indigo-300">Live Preview:</strong> Edit title, cover, or style — see changes instantly at 60 fps.</p>
           <p><strong className="text-indigo-300">Editable Segments:</strong> Adjust start/duration per clip, add or delete freely.</p>
           <p><strong className="text-indigo-300">Export:</strong> <span className="mono">MediaRecorder</span> records in real-time (1× speed).</p>

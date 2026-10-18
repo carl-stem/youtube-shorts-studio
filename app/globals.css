@@ -23,3 +23,42 @@ body { font-family: 'Inter', 'Segoe UI', sans-serif; }
 .pt-safe  { padding-top:    max(0px, env(safe-area-inset-top)); }
 .pl-safe  { padding-left:   max(1rem, env(safe-area-inset-left)); }
 .pr-safe  { padding-right:  max(1rem, env(safe-area-inset-right)); }
+
+/* ── Theme variables ─────────────────────────────────────────────────────── */
+:root {
+  /* Light mode (default) */
+  --bg-base:      #f8fafc;
+  --bg-surface:   #ffffff;
+  --bg-surface2:  #f1f5f9;
+  --bg-header:    rgba(255,255,255,0.9);
+  --bg-input:     #f1f5f9;
+  --border:       #e2e8f0;
+  --border-input: #cbd5e1;
+  --text-1:       #0f172a;
+  --text-2:       #475569;
+  --text-3:       #94a3b8;
+  --log-bg:       #f8fafc;
+  --log-text:     #059669;
+}
+
+.dark {
+  /* Dark mode */
+  --bg-base:      #0b0c10;
+  --bg-surface:   #161822;
+  --bg-surface2:  #0e1017;
+  --bg-header:    rgba(18,19,26,0.9);
+  --bg-input:     #0e1017;
+  --border:       rgba(30,41,59,0.8);
+  --border-input: #334155;
+  --text-1:       #f1f5f9;
+  --text-2:       #94a3b8;
+  --text-3:       #64748b;
+  --log-bg:       #0b0c10;
+  --log-text:     #34d399;
+}
+
+/* Apply theme variables to base elements */
+body {
+  background-color: var(--bg-base);
+  color: var(--text-1);
+}

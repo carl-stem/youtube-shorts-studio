@@ -17,6 +17,9 @@ import VisualStylePanel from './VisualStylePanel';
 import SegmentEditor from './SegmentEditor';
 import ConsoleLog from './ConsoleLog';
 import CanvasPreview from './CanvasPreview';
+import StepperNav from './StepperNav';
+import ExportPanel from './ExportPanel';
+import SocialShare from './SocialShare';
 
 // ─── defaults ────────────────────────────────────────────────────────────────
 
@@ -70,6 +73,10 @@ export default function Studio() {
   // feature support (checked client-side on mount)
   const [canRecord, setCanRecord] = useState<boolean>(true);
 
+  // ── stepper state ──
+  const [currentStep, setCurrentStep] = useState(1);
+  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+
   // ── canvas & audio refs (animation loop reads these directly) ──
   const canvasRef          = useRef<HTMLCanvasElement>(null);
   const blurredBgRef       = useRef<HTMLCanvasElement | null>(null);
@@ -102,6 +109,19 @@ export default function Studio() {
   // ── keep mirror refs in sync ──
   useEffect(() => { vizRef.current = vizConfig; }, [vizConfig]);
   useEffect(() => { metaRef.current = trackMeta; }, [trackMeta]);
+
+  // ── stepper helpers ──
+  const completeStep = (step: number) => {
+    setCompletedSteps(prev => prev.includes(step) ? prev : [...prev, step]);
+    setCurrentStep(step + 1);
+  };
+
+  // ── URL step param ──
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const s = parseInt(params.get('step') || '1', 10);
+    if (s >= 1 && s <= 4) setCurrentStep(s);
+  }, []);
 
   // ── logging ──
   const log = useCallback((msg: string) => {
@@ -476,17 +496,35 @@ export default function Studio() {
   // ── segments (computed) ──
   const segments = getSegments();
 
+  // ── StepFooter helper ──
+  interface StepFooterProps {
+    onBack?: () => void;
+    onNext?: () => void;
+    nextLabel?: string;
+    nextDisabled?: boolean;
+  }
+  function StepFooter({ onBack, onNext, nextLabel = 'Continue →', nextDisabled }: StepFooterProps) {
+    return (
+      <div className="flex justify-between gap-3 pt-2">
+        {onBack ? (
+          <button onClick={onBack} className="px-5 py-3 rounded-xl bg-[var(--bg-surface2)] hover:bg-[var(--border)] text-[var(--text-2)] font-semibold text-sm border border-[var(--border)] transition cursor-pointer">
+            ← Back
+          </button>
+        ) : <div />}
+        {onNext && (
+          <button onClick={onNext} disabled={nextDisabled} className="flex-1 py-3 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-sm transition cursor-pointer disabled:opacity-40 shadow-lg shadow-indigo-600/20">
+            {nextLabel}
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header codecLabel={`Export: .${detectedFormat.ext.toUpperCase()}`} />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-        {/*
-          Mobile: canvas appears FIRST (order-first), controls scroll below.
-          Sticky canvas stays visible as user scrolls through controls.
-          Desktop (lg): controls left (order-last resets to DOM flow),
-          canvas right via lg:order-last.
-        */}
         <div className="lg:col-span-5 order-first lg:order-last flex flex-col items-center">
           <CanvasPreview
             canvasRef={canvasRef}
@@ -498,40 +536,74 @@ export default function Studio() {
           />
         </div>
 
-        <div className="lg:col-span-7 order-last lg:order-first space-y-6">
-          <MediaUploader
-            audio={audioFile}
-            image={imageFile}
-            srt={srtFile}
-            onAudioChange={handleAudioChange}
-            onImageChange={handleImageChange}
-            onSrtChange={handleSrtChange}
+        <div className="lg:col-span-7 order-last lg:order-first space-y-4">
+          <StepperNav
+            currentStep={currentStep}
+            completedSteps={completedSteps}
+            onChange={setCurrentStep}
           />
 
-          <TrackSettings trackMeta={trackMeta} onChange={setTrackMeta} />
+          {currentStep === 1 && (
+            <div className="space-y-6">
+              <MediaUploader
+                audio={audioFile}
+                image={imageFile}
+                srt={srtFile}
+                onAudioChange={handleAudioChange}
+                onImageChange={handleImageChange}
+                onSrtChange={handleSrtChange}
+              />
+              <TrackSettings trackMeta={trackMeta} onChange={setTrackMeta} />
+              <StepFooter onNext={() => completeStep(1)} nextLabel="Style →" />
+            </div>
+          )}
 
-          <VisualStylePanel vizConfig={vizConfig} onChange={setVizConfig} />
+          {currentStep === 2 && (
+            <div className="space-y-6">
+              <VisualStylePanel vizConfig={vizConfig} onChange={setVizConfig} />
+              <StepFooter onBack={() => setCurrentStep(1)} onNext={() => completeStep(2)} nextLabel="Edit Clips →" />
+            </div>
+          )}
 
-          <SegmentEditor
-            segments={segments}
-            isManual={userSegments !== null}
-            hasAudio={!!audioBufferRef.current}
-            isRendering={isRendering}
-            isPreviewPlaying={isPreviewPlaying}
-            progress={progress}
-            downloads={downloads}
-            onPreviewSegment={(seg) => startPreview(seg.start, seg.duration)}
-            onRenderSegment={(seg) => renderBatch([seg])}
-            onRenderAll={() => renderBatch(segments)}
-            onStop={() => { stopFlagRef.current = true; }}
-            onTogglePreview={togglePreview}
-            onSegmentChange={handleSegmentChange}
-            onAddSegment={handleAddSegment}
-            onDeleteSegment={handleDeleteSegment}
-            onAutoGenerate={handleAutoGenerate}
-          />
+          {currentStep === 3 && (
+            <div className="space-y-6">
+              <SegmentEditor
+                segments={segments}
+                isManual={userSegments !== null}
+                hasAudio={!!audioBufferRef.current}
+                isRendering={isRendering}
+                isPreviewPlaying={isPreviewPlaying}
+                progress={progress}
+                downloads={downloads}
+                onPreviewSegment={(seg) => startPreview(seg.start, seg.duration)}
+                onRenderSegment={(seg) => renderBatch([seg])}
+                onRenderAll={() => renderBatch(segments)}
+                onStop={() => { stopFlagRef.current = true; }}
+                onTogglePreview={togglePreview}
+                onSegmentChange={handleSegmentChange}
+                onAddSegment={handleAddSegment}
+                onDeleteSegment={handleDeleteSegment}
+                onAutoGenerate={handleAutoGenerate}
+              />
+              <StepFooter onBack={() => setCurrentStep(2)} onNext={() => completeStep(3)} nextLabel="Preview & Export →" />
+            </div>
+          )}
 
-          <ConsoleLog logs={logs} onClear={() => setLogs([])} />
+          {currentStep === 4 && (
+            <div className="space-y-6">
+              <ExportPanel
+                segmentCount={segments.length}
+                isRendering={isRendering}
+                progress={progress}
+                downloads={downloads}
+                onRenderAll={() => renderBatch(segments)}
+                onStop={() => { stopFlagRef.current = true; }}
+              />
+              <SocialShare downloads={downloads} />
+              <ConsoleLog logs={logs} onClear={() => setLogs([])} />
+              <StepFooter onBack={() => setCurrentStep(3)} />
+            </div>
+          )}
         </div>
       </main>
     </div>
