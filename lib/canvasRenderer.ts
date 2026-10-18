@@ -284,7 +284,7 @@ export function renderShortsFrame(
     ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(titleText || 'Untitled Track', SHORTS_WIDTH / 2, 1100);
+    ctx.fillText(titleText || 'Your Track Title', SHORTS_WIDTH / 2, 1100);
     ctx.restore();
   }
 
@@ -294,7 +294,7 @@ export function renderShortsFrame(
     ctx.fillStyle = 'rgba(185, 190, 210, 0.90)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(artistText || 'Original Audio', SHORTS_WIDTH / 2, 1172);
+    ctx.fillText(artistText || 'Artist Name', SHORTS_WIDTH / 2, 1172);
     ctx.restore();
   }
 
@@ -337,18 +337,42 @@ export function createDefaultCoverImage(): Promise<HTMLImageElement> {
     const tmp = document.createElement('canvas');
     tmp.width = 800; tmp.height = 800;
     const t = tmp.getContext('2d')!;
+
+    // Deep indigo-to-black background
     const g = t.createLinearGradient(0, 0, 800, 800);
-    g.addColorStop(0, '#1e1b4b'); g.addColorStop(0.5, '#7c2d12'); g.addColorStop(1, '#090a0f');
+    g.addColorStop(0, '#1e1b4b'); g.addColorStop(1, '#030712');
     t.fillStyle = g; t.fillRect(0, 0, 800, 800);
-    const r = t.createRadialGradient(400, 360, 20, 400, 360, 320);
-    r.addColorStop(0, 'rgba(251,146,60,0.85)'); r.addColorStop(0.5, 'rgba(225,29,72,0.35)'); r.addColorStop(1, 'rgba(0,0,0,0)');
-    t.fillStyle = r; t.fillRect(0, 0, 800, 800);
-    t.strokeStyle = 'rgba(255,255,255,0.22)'; t.lineWidth = 6;
-    t.beginPath(); t.arc(400, 360, 170, 0, Math.PI * 2); t.stroke();
-    t.fillStyle = '#ffffff'; t.font = '800 54px Inter, sans-serif'; t.textAlign = 'center';
-    t.fillText('WINGS OF', 400, 620);
-    t.fillStyle = '#fb923c'; t.font = '800 58px Inter, sans-serif';
-    t.fillText('DESTRUCTION', 400, 685);
+
+    // Soft glow in center
+    const glow = t.createRadialGradient(400, 380, 0, 400, 380, 280);
+    glow.addColorStop(0, 'rgba(99,102,241,0.45)');
+    glow.addColorStop(0.6, 'rgba(168,85,247,0.18)');
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    t.fillStyle = glow; t.fillRect(0, 0, 800, 800);
+
+    // Music note icon (simplified waveform bars as placeholder)
+    const barData = [0.35, 0.55, 0.80, 1.0, 0.75, 0.50, 0.30];
+    const totalBarW = barData.length * 52 + (barData.length - 1) * 18;
+    let bx = (800 - totalBarW) / 2;
+    barData.forEach(h => {
+      const barH = h * 200;
+      const by = 400 - barH / 2;
+      t.beginPath();
+      t.roundRect(bx, by, 52, barH, 12);
+      const barGrad = t.createLinearGradient(0, by, 0, by + barH);
+      barGrad.addColorStop(0, 'rgba(165,180,252,0.95)');
+      barGrad.addColorStop(1, 'rgba(99,102,241,0.6)');
+      t.fillStyle = barGrad;
+      t.fill();
+      bx += 70;
+    });
+
+    // Instruction text
+    t.fillStyle = 'rgba(148,163,184,0.70)';
+    t.font = '500 32px Inter, sans-serif';
+    t.textAlign = 'center';
+    t.fillText('Drop your album cover above', 400, 660);
+
     const img = new Image();
     img.onload = () => resolve(img);
     img.src = tmp.toDataURL();

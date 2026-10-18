@@ -27,7 +27,7 @@ export default function TrackSettings({ trackMeta, onChange }: Props) {
             className={inputCls}
             value={trackMeta.title}
             onChange={(e) => set('title', e.target.value)}
-            placeholder="e.g. Born to Burn"
+              placeholder="e.g. Your Song Title"
           />
         </div>
         <div>
@@ -36,7 +36,7 @@ export default function TrackSettings({ trackMeta, onChange }: Props) {
             className={inputCls}
             value={trackMeta.artist}
             onChange={(e) => set('artist', e.target.value)}
-            placeholder="e.g. The Forboden"
+              placeholder="e.g. Your Artist Name"
           />
         </div>
         <div>

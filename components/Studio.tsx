@@ -31,7 +31,7 @@ const DEFAULT_VIZ: VizConfig = {
 };
 
 const DEFAULT_META: TrackMeta = {
-  title: 'Born to Burn', artist: 'The Forboden', clipDuration: 58, maxShorts: null,
+  title: '', artist: '', clipDuration: 58, maxShorts: null,
 };
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
