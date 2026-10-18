@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'YouTube Shorts Studio',
+  title: 'Shorts Studio',
   description: '1080×1920 Vertical Video Generator with Live Audio Spectrum',
 };
 

@@ -7,10 +7,10 @@ interface Props {
 }
 
 const STEPS = [
-  { n: 1, label: 'Files' },
-  { n: 2, label: 'Style' },
-  { n: 3, label: 'Clips' },
-  { n: 4, label: 'Export' },
+  { n: 1, label: 'Files',  sub: 'Upload & metadata' },
+  { n: 2, label: 'Style',  sub: 'Visual settings'   },
+  { n: 3, label: 'Clips',  sub: 'Edit segments'      },
+  { n: 4, label: 'Export', sub: 'Render & share'     },
 ];
 
 export default function StepperNav({ currentStep, completedSteps, onChange }: Props) {
@@ -29,7 +29,7 @@ export default function StepperNav({ currentStep, completedSteps, onChange }: Pr
               className={`flex flex-col items-center gap-1 cursor-default ${canNav ? 'cursor-pointer' : ''}`}
             >
               {/* Circle */}
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all
                 ${active  ? 'bg-indigo-600 text-white ring-4 ring-indigo-500/30 scale-110' : ''}
                 ${done    ? 'bg-emerald-600 text-white' : ''}
                 ${future  ? 'bg-[var(--bg-surface2)] text-[var(--text-3)] border-2 border-[var(--border)]' : ''}
@@ -42,6 +42,10 @@ export default function StepperNav({ currentStep, completedSteps, onChange }: Pr
                 ${done    ? 'text-emerald-400' : ''}
                 ${future  ? 'text-[var(--text-3)]' : ''}
               `}>{step.label}</span>
+              {/* Sub-label */}
+              <span className="text-[9px] text-[var(--text-3)] hidden sm:block text-center leading-tight mt-0.5">
+                {step.sub}
+              </span>
             </button>
             {/* Connector line (not after last) */}
             {i < STEPS.length - 1 && (

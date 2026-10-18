@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'YouTube Shorts Studio',
+    name: 'Shorts Studio',
     short_name: 'Shorts Studio',
     description: '1080×1920 Vertical Video Generator with Live Audio Spectrum',
     start_url: '/',

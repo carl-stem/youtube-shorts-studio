@@ -9,6 +9,8 @@ import {
 } from '../lib/canvasRenderer';
 import { getSupportedMimeType } from '../lib/mediaCodec';
 import { parseSRT } from '../lib/srtParser';
+import { serializeProject, downloadProject, loadProjectFromFile } from '../lib/projectSerializer';
+import { useToast } from '../hooks/useToast';
 
 import Header from './Header';
 import MediaUploader from './MediaUploader';
@@ -20,6 +22,8 @@ import CanvasPreview from './CanvasPreview';
 import StepperNav from './StepperNav';
 import ExportPanel from './ExportPanel';
 import SocialShare from './SocialShare';
+import ToastContainer from './Toast';
+import SpotifySearch from './SpotifySearch';
 
 // ─── defaults ────────────────────────────────────────────────────────────────
 
@@ -77,6 +81,12 @@ export default function Studio() {
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 
+  // ── toast ──
+  const { toasts, toast, dismiss, updateToast } = useToast();
+
+  // ── captioning state ──
+  const [isCaptioning, setIsCaptioning] = useState(false);
+
   // ── canvas & audio refs (animation loop reads these directly) ──
   const canvasRef          = useRef<HTMLCanvasElement>(null);
   const blurredBgRef       = useRef<HTMLCanvasElement | null>(null);
@@ -86,14 +96,18 @@ export default function Studio() {
   // Audio
   const audioCtxRef        = useRef<AudioContext | null>(null);
   const audioBufferRef     = useRef<AudioBuffer | null>(null);
+  const decodedAudioFileRef = useRef<File | null>(null);
   const analyserRef        = useRef<AnalyserNode | null>(null);
   const sourceRef          = useRef<AudioBufferSourceNode | null>(null);
   const previewStartRef    = useRef<number>(0);
   const previewDurRef      = useRef<number>(58);
-  const segOffsetRef       = useRef<number>(0);   // absolute audio position for CC
+  const segOffsetRef       = useRef<number>(0);
   const isPlayingRef       = useRef<boolean>(false);
   const isRenderingRef     = useRef<boolean>(false);
   const stopFlagRef        = useRef<boolean>(false);
+
+  // Project file input ref
+  const projectFileInputRef = useRef<HTMLInputElement>(null);
 
   // Render-loop mirror refs (avoid stale closures)
   const coverRef           = useRef<HTMLImageElement | null>(null);
@@ -292,13 +306,17 @@ export default function Studio() {
       audioBufferRef.current = buf;
       setAudioDuration(buf.duration);
       setUserSegments(null); // reset to auto on new audio
+      decodedAudioFileRef.current = file;
       setAudioFile({ name: file.name, meta: `${buf.duration.toFixed(1)}s · ${buf.sampleRate} Hz` });
       log(`[✔] Audio decoded: ${buf.duration.toFixed(2)}s (${buf.numberOfChannels} ch)`);
-    } catch (err: any) {
+      toast(`Audio loaded: ${file.name}`, 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Decode error';
       setAudioFile({ name: file.name, meta: 'Failed to decode' });
-      log(`[ERROR] ${err.message}`);
+      log(`[ERROR] ${msg}`);
+      toast(`Audio error: ${msg}`, 'error');
     }
-  }, [stopPreviewInternal, log]);
+  }, [stopPreviewInternal, log, toast]);
 
   const handleImageChange = useCallback((file: File) => {
     const reader = new FileReader();
@@ -365,6 +383,103 @@ export default function Studio() {
     setUserSegments(null);
     log('[*] Segments reset to auto-generated.');
   }, [log]);
+
+  // ── project save / load ──
+  const handleSaveProject = useCallback(() => {
+    const project = serializeProject(
+      trackMeta,
+      vizConfig,
+      userSegments,
+      srtCuesRef.current,
+      audioFile.name !== 'Choose .WAV or Audio File' ? audioFile.name : undefined,
+      imageFile.name !== 'Choose Album Cover' ? imageFile.name : undefined,
+    );
+    downloadProject(project);
+    toast('Project saved!', 'success');
+    log('[✔] Project saved to file.');
+  }, [trackMeta, vizConfig, userSegments, audioFile.name, imageFile.name, toast, log]);
+
+  const handleLoadProject = useCallback(() => {
+    projectFileInputRef.current?.click();
+  }, []);
+
+  const handleProjectFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    try {
+      const project = await loadProjectFromFile(file);
+      setTrackMeta(project.trackMeta);
+      setVizConfig(project.vizConfig);
+      setUserSegments(project.userSegments);
+      srtCuesRef.current = project.srtCues;
+      if (project.srtCues.length > 0) {
+        setSrtFile({ name: 'project-captions', meta: `${project.srtCues.length} cue(s) loaded` });
+      }
+      toast(`Project loaded: ${project.name}`, 'success');
+      log(`[✔] Project loaded: "${project.name}" (saved ${project.savedAt})`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Load error';
+      toast(msg, 'error');
+      log(`[ERROR] Project load failed: ${msg}`);
+    }
+  }, [toast, log]);
+
+  // ── Spotify select ──
+  const handleSpotifySelect = useCallback((title: string, artist: string, artUrl: string | null) => {
+    setTrackMeta(m => ({ ...m, title, artist }));
+    if (artUrl) {
+      fetch(artUrl)
+        .then(r => r.blob())
+        .then(blob => {
+          const objectUrl = URL.createObjectURL(blob);
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            coverRef.current = img;
+            if (blurredBgRef.current) updateBlurredBackground(blurredBgRef.current, img);
+            setImageFile({ name: 'spotify-art.jpg', meta: `${img.width}×${img.height}px` });
+            log(`[✔] Spotify cover loaded`);
+          };
+          img.src = objectUrl;
+        })
+        .catch(() => log('[!] Failed to load Spotify artwork'));
+    }
+    toast('Filled from Spotify ✓', 'success');
+  }, [toast, log]);
+
+  // ── Whisper auto-caption ──
+  const handleAutoCaption = useCallback(async () => {
+    const file = decodedAudioFileRef.current;
+    if (!audioBufferRef.current || !file) {
+      toast('Load an audio file first', 'error'); return;
+    }
+    setIsCaptioning(true);
+    const id = toast('Generating captions with Whisper…', 'loading', 0);
+    try {
+      const form = new FormData();
+      form.append('audio', file);
+      const res = await fetch('/api/whisper', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const cues = parseSRT(data.srt);
+      srtCuesRef.current = cues;
+      setSrtFile({ name: 'auto-generated', meta: `${cues.length} cues from Whisper` });
+      updateToast(id, `✓ Generated ${cues.length} caption cues`, 'success');
+      log(`[✔] Whisper: ${cues.length} cues generated`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Caption error';
+      updateToast(
+        id,
+        msg.includes('not configured')
+          ? 'Add OPENAI_API_KEY to Vercel env vars'
+          : `Caption error: ${msg}`,
+        'error',
+      );
+    } finally {
+      setIsCaptioning(false);
+    }
+  }, [toast, updateToast, log]);
 
   // ── recording ──
   const recordSingleShort = useCallback(
@@ -488,10 +603,11 @@ export default function Studio() {
     if (!stopFlagRef.current) {
       setProgress({ pct: 100, status: 'All Shorts finished!' });
       log('[✔] Batch complete! Files downloaded.');
+      toast(`Export complete — ${segs.length} clip${segs.length !== 1 ? 's' : ''} saved!`, 'success');
     } else {
       setProgress((p) => ({ ...p, status: 'Render stopped' }));
     }
-  }, [stopPreviewInternal, recordSingleShort, log]);
+  }, [stopPreviewInternal, recordSingleShort, log, toast]);
 
   // ── segments (computed) ──
   const segments = getSegments();
@@ -522,7 +638,20 @@ export default function Studio() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header codecLabel={`Export: .${detectedFormat.ext.toUpperCase()}`} />
+      {/* Hidden project file input */}
+      <input
+        ref={projectFileInputRef}
+        type="file"
+        accept=".json,.shortsproject.json"
+        className="hidden"
+        onChange={handleProjectFileSelected}
+      />
+
+      <Header
+        codecLabel={`Export: .${detectedFormat.ext.toUpperCase()}`}
+        onSaveProject={handleSaveProject}
+        onLoadProject={handleLoadProject}
+      />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
         <div className="lg:col-span-5 order-first lg:order-last flex flex-col items-center">
@@ -544,7 +673,7 @@ export default function Studio() {
           />
 
           {currentStep === 1 && (
-            <div className="space-y-6">
+            <div key="step-1" className="step-enter space-y-6">
               <MediaUploader
                 audio={audioFile}
                 image={imageFile}
@@ -553,20 +682,36 @@ export default function Studio() {
                 onImageChange={handleImageChange}
                 onSrtChange={handleSrtChange}
               />
+              <SpotifySearch onSelect={handleSpotifySelect} />
               <TrackSettings trackMeta={trackMeta} onChange={setTrackMeta} />
+              {audioFile.name !== 'Choose .WAV or Audio File' && (
+                <button
+                  onClick={handleAutoCaption}
+                  disabled={isCaptioning}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl
+                             bg-violet-600/10 hover:bg-violet-600/20 text-violet-400
+                             border border-violet-500/30 text-sm font-semibold transition cursor-pointer
+                             disabled:opacity-40"
+                >
+                  {isCaptioning
+                    ? <><span className="animate-spin">⟳</span> Generating captions…</>
+                    : <><span>✨</span> Auto-generate captions with Whisper</>
+                  }
+                </button>
+              )}
               <StepFooter onNext={() => completeStep(1)} nextLabel="Style →" />
             </div>
           )}
 
           {currentStep === 2 && (
-            <div className="space-y-6">
+            <div key="step-2" className="step-enter space-y-6">
               <VisualStylePanel vizConfig={vizConfig} onChange={setVizConfig} />
               <StepFooter onBack={() => setCurrentStep(1)} onNext={() => completeStep(2)} nextLabel="Edit Clips →" />
             </div>
           )}
 
           {currentStep === 3 && (
-            <div className="space-y-6">
+            <div key="step-3" className="step-enter space-y-6">
               <SegmentEditor
                 segments={segments}
                 isManual={userSegments !== null}
@@ -590,7 +735,7 @@ export default function Studio() {
           )}
 
           {currentStep === 4 && (
-            <div className="space-y-6">
+            <div key="step-4" className="step-enter space-y-6">
               <ExportPanel
                 segmentCount={segments.length}
                 isRendering={isRendering}
@@ -606,6 +751,8 @@ export default function Studio() {
           )}
         </div>
       </main>
+
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

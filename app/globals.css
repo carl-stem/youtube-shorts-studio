@@ -62,3 +62,22 @@ body {
   background-color: var(--bg-base);
   color: var(--text-1);
 }
+
+/* ── Step content entrance animation ─────────────────────────────────────── */
+@keyframes stepEnter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+.step-enter { animation: stepEnter 0.22s ease-out forwards; }
+
+/* ── Theme transition (smooth color switching) ────────────────────────────── */
+*, *::before, *::after {
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+/* Exclude transforms so canvas/animations aren't affected */
+canvas, [style*="transform"] { transition: none !important; }
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+.toast-enter  { animation: stepEnter 0.2s ease-out forwards; }
+.toast-exit   { animation: stepEnter 0.2s ease-out reverse forwards; }
+

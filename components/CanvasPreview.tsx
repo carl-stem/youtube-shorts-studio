@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import type { RefObject } from 'react';
 
 interface Props {
@@ -14,6 +15,23 @@ interface Props {
 export default function CanvasPreview({
   canvasRef, previewTimeStr, isPreviewPlaying, isRendering, canRecord, onTogglePreview,
 }: Props) {
+  const [installPrompt, setInstallPrompt] = useState<Event & { prompt: () => void; userChoice: Promise<{ outcome: string }> } | null>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e as Event & { prompt: () => void; userChoice: Promise<{ outcome: string }> }); };
+    window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', () => setIsInstalled(true));
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const installApp = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') setInstallPrompt(null);
+  };
+
   return (
     <div className="w-full flex flex-col items-center">
       {/* Sticky wrapper — on desktop this keeps the canvas in view while scrolling controls.
@@ -64,6 +82,12 @@ export default function CanvasPreview({
           <p><strong className="text-indigo-300">Export:</strong> <span className="mono">MediaRecorder</span> records in real-time (1× speed).</p>
           <p><strong className="text-indigo-300">SRT / CC:</strong> Upload an SRT file to burn timed subtitles into every clip.</p>
         </div>
+
+        {installPrompt && !isInstalled && (
+          <button onClick={installApp} className="mt-3 w-full max-w-[360px] flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 text-xs font-semibold transition cursor-pointer">
+            📲 Install Shorts Studio as App
+          </button>
+        )}
       </div>
     </div>
   );

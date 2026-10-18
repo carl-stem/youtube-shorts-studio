@@ -1,6 +1,6 @@
-# YouTube Shorts Studio
+# Shorts Studio
 
-> **1080×1920 vertical video generator** — React/Next.js, live 60 fps canvas preview, editable segments, SRT captions, and one-click Vercel deploy.
+> **1080×1920 vertical video generator** — React/Next.js, live 60 fps canvas preview, editable segments, SRT captions, Whisper auto-captions, Spotify search, and one-click Vercel deploy.
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/carl-stem/youtube-shorts-studio)
 
