@@ -648,6 +648,7 @@ export default function Studio() {
       />
 
       <Header
+        showBrand={false}
         codecLabel={`Export: .${detectedFormat.ext.toUpperCase()}`}
         onSaveProject={handleSaveProject}
         onLoadProject={handleLoadProject}
