@@ -17,6 +17,10 @@ export interface VizConfig {
   exportQuality: number;
   ctaText: string;
   ctaPosition: 'top' | 'above-spectrum';
+  overlayEmoji?: string;
+  overlayLink?: string;
+  overlayPosition?: 'top' | 'middle' | 'bottom';
+  overlayStyle?: 'pill' | 'banner' | 'outline';
 }
 
 export interface SRTCue {
@@ -29,6 +33,14 @@ export interface DownloadItem {
   filename: string;
   url: string;
   sizeBytes: number;
+  durationSeconds?: number;
+}
+
+export interface AlbumTrackFile {
+  file: File;
+  cover?: File;
+  artist: string;
+  title: string;
 }
 
 export interface TrackMeta {
@@ -37,6 +49,8 @@ export interface TrackMeta {
   clipDuration: number;
   maxShorts: number | null;
 }
+
+export type VideoFilter = 'original' | 'warm' | 'cool' | 'monochrome' | 'vivid';
 
 export interface RenderFrameOptions {
   blurredBgCanvas: HTMLCanvasElement | null;

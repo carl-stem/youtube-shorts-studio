@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, PointerEvent as ReactPointerEvent } from 'react';
-import type { DownloadItem, SRTCue } from '../types';
+import type { DownloadItem, SRTCue, VideoFilter } from '../types';
 import { extractZipMedia, listZipMedia, parseCaptionFile, VIDEO_ZIP_LIMITS, videoMime } from '../lib/videoAssets';
 import type { ZipMediaCandidate } from '../lib/videoAssets';
 import { getSupportedMimeType } from '../lib/mediaCodec';
@@ -27,6 +27,7 @@ interface VideoClip {
   panY: number;
   title: string;
   captions: SRTCue[];
+  filter: VideoFilter;
 }
 
 interface ZipReview {
@@ -106,7 +107,15 @@ function drawVerticalFrame(
     const drawHeight = video.videoHeight * scale;
     const x = (canvas.width - drawWidth) / 2 + (clip.framing === 'fill' ? clip.panX * Math.max(0, drawWidth - canvas.width) / 2 : 0);
     const y = (canvas.height - drawHeight) / 2 + (clip.framing === 'fill' ? clip.panY * Math.max(0, drawHeight - canvas.height) / 2 : 0);
+    const filters: Record<VideoFilter, string> = {
+      original: 'none', warm: 'sepia(0.22) saturate(1.2) hue-rotate(-8deg)',
+      cool: 'saturate(0.9) hue-rotate(12deg) brightness(1.04)',
+      monochrome: 'grayscale(1)', vivid: 'saturate(1.45) contrast(1.08)',
+    };
+    ctx.save();
+    ctx.filter = filters[clip.filter] ?? 'none';
     ctx.drawImage(video, x, y, drawWidth, drawHeight);
+    ctx.restore();
   }
   if (clip.title.trim()) {
     ctx.save();
@@ -337,7 +346,7 @@ export default function VideoStudio() {
       const newClips = loaded.map((asset) => ({
         id: makeId(), assetId: asset.id, start: 0, end: Math.min(asset.duration, 60),
         framing: 'fill' as const, zoom: 1, panX: 0, panY: 0,
-        title: asset.file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '), captions: defaultCaptions,
+        title: asset.file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '), captions: defaultCaptions, filter: 'original' as VideoFilter,
       }));
       setAssets((previous) => [...previous, ...loaded]);
       setClips((previous) => [...previous, ...newClips]);
@@ -432,7 +441,7 @@ export default function VideoStudio() {
     const clip: VideoClip = {
       id: makeId(), assetId: selectedAsset.id, start: 0, end: Math.min(selectedAsset.duration, 60),
       framing: 'fill', zoom: 1, panX: 0, panY: 0,
-      title: selectedAsset.file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '), captions: [],
+      title: selectedAsset.file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '), captions: [], filter: 'original',
     };
     setClips((previous) => [...previous, clip]);
     setSelectedClipId(clip.id);
@@ -537,7 +546,7 @@ export default function VideoStudio() {
       const url = URL.createObjectURL(blob);
       ownedDownloadUrlsRef.current.add(url);
       const safeName = (selectedClip.title || selectedAsset.file.name.replace(/\.[^.]+$/, '') || 'short').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '').slice(0, 70) || 'short';
-      const item: DownloadItem = { filename: `${safeName}.${format.ext}`, url, sizeBytes: blob.size };
+      const item: DownloadItem = { filename: `${safeName}.${format.ext}`, url, sizeBytes: blob.size, durationSeconds: clipDuration };
       setDownloads((previous) => [...previous, item]);
       setProgress(100);
       setExportStatus(`Export complete · ${format.label}`);
@@ -724,6 +733,7 @@ export default function VideoStudio() {
                 <h2 className="font-semibold">3. Make it yours</h2><p className="mt-1 text-xs text-[var(--text-2)]">Drag the preview to reposition when Fill is selected.</p>
                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div><label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">Frame your video</label><select className={inputClass} value={selectedClip.framing} onChange={(event) => updateClip({ framing: event.target.value as VideoClip['framing'], zoom: 1, panX: 0, panY: 0 })}><option value="fill">Fill portrait frame (crop)</option><option value="fit">Fit entire video</option></select></div>
+                  <div><label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">Color filter</label><select className={inputClass} value={selectedClip.filter} onChange={(event) => updateClip({ filter: event.target.value as VideoFilter })}><option value="original">Original</option><option value="warm">Warm</option><option value="cool">Cool</option><option value="monochrome">Monochrome</option><option value="vivid">Vivid</option></select></div>
                   {selectedClip.framing === 'fill' && <div><label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">Zoom · {selectedClip.zoom.toFixed(1)}×</label><div className="flex items-center gap-3"><input className="w-full accent-indigo-500" type="range" min="1" max="2.5" step="0.05" value={selectedClip.zoom} onChange={(event) => updateClip({ zoom: Number(event.target.value) })} aria-label="Video crop zoom" /><button className="text-xs text-indigo-400 hover:text-indigo-300" onClick={() => updateClip({ zoom: 1, panX: 0, panY: 0 })}>Reset frame</button></div></div>}
                   <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">Title on video</label><input className={inputClass} maxLength={100} value={selectedClip.title} onChange={(event) => updateClip({ title: event.target.value })} placeholder="Add a short title" /></div>
                   <div className="sm:col-span-2">
@@ -760,7 +770,7 @@ export default function VideoStudio() {
                   <canvas ref={attachPreviewCanvas} width={OUTPUT_WIDTH} height={OUTPUT_HEIGHT} className="aspect-[9/16] w-full" />
                 </div>
               </div>
-              <p className="mt-3 text-center text-xs text-[var(--text-3)]">Preview includes your crop, title, and captions.</p>
+              <p className="mt-3 text-center text-xs text-[var(--text-3)]">Preview includes your crop, {selectedClip.filter} filter, title, and captions.</p>
             </div>
           ) : (
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-8 text-center lg:sticky lg:top-20">

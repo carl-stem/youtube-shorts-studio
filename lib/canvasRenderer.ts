@@ -219,23 +219,34 @@ function renderCC(
 }
 
 function renderCTA(ctx: CanvasRenderingContext2D, vizConfig: VizConfig) {
-  if (!vizConfig.ctaText) return;
+  const text = [vizConfig.overlayEmoji, vizConfig.ctaText, vizConfig.overlayLink].filter(Boolean).join('  ');
+  if (!text) return;
   ctx.save();
   const fontSize = 38;
   ctx.font = `600 ${fontSize}px Inter, Segoe UI, sans-serif`;
-  const tw = ctx.measureText(vizConfig.ctaText).width;
+  const maxWidth = 900;
+  const label = text.length > 120 ? `${text.slice(0, 117)}…` : text;
   const pH = 28, pV = 14;
-  const bgW = tw + pH * 2;
+  const bgW = Math.min(maxWidth, ctx.measureText(label).width + pH * 2);
   const bgH = fontSize + pV * 2;
   const bgX = (SHORTS_WIDTH - bgW) / 2;
-  const bgY = vizConfig.ctaPosition === 'top' ? 60 : 1250;
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-  drawRoundedRect(ctx, bgX, bgY, bgW, bgH, 50);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+  const position = vizConfig.overlayPosition ?? vizConfig.ctaPosition;
+  const bgY = position === 'middle' ? 900 : position === 'bottom' ? 1720 : (position === 'top' ? 60 : 1250);
+  const style = vizConfig.overlayStyle ?? 'pill';
+  if (style !== 'outline') {
+    ctx.fillStyle = style === 'banner' ? 'rgba(0, 0, 0, 0.72)' : 'rgba(0, 0, 0, 0.55)';
+    if (style === 'banner') ctx.fillRect(bgX, bgY, bgW, bgH);
+    else { drawRoundedRect(ctx, bgX, bgY, bgW, bgH, 50); ctx.fill(); }
+  } else {
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 3;
+    drawRoundedRect(ctx, bgX, bgY, bgW, bgH, 50);
+    ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(vizConfig.ctaText, SHORTS_WIDTH / 2, bgY + bgH / 2);
+  ctx.fillText(label, SHORTS_WIDTH / 2, bgY + bgH / 2, bgW - pH);
   ctx.restore();
 }
 

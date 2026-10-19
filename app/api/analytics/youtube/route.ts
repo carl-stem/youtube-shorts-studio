@@ -1,12 +1,14 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getValidGoogleToken, getGoogleTokens } from '../../../../lib/tokenManager';
 
-export async function GET() {
-  const token = await getValidGoogleToken();
+export async function GET(req: NextRequest) {
+  const sessionId = req.cookies.get('oauth_session')?.value;
+  if (!sessionId) return NextResponse.json({ error: 'YouTube not connected' }, { status: 401 });
+  const token = await getValidGoogleToken(sessionId);
   if (!token) return NextResponse.json({ error: 'YouTube not connected' }, { status: 401 });
 
   try {
-    const tokens    = await getGoogleTokens();
+    const tokens    = await getGoogleTokens(sessionId);
     const channelId = tokens?.channelId;
     if (!channelId) return NextResponse.json({ error: 'Channel ID not found' }, { status: 400 });
 

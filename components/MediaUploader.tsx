@@ -1,8 +1,21 @@
 'use client';
 
+import type { AlbumTrackFile } from '../types';
+
 interface DropzoneFile { name: string; meta: string }
 
 interface Props {
+  albumQueue: AlbumTrackFile[];
+  albumIndex: number;
+  onAlbumZip: (file: File) => void;
+  onAlbumTrackChange: (index: number, patch: Partial<Pick<AlbumTrackFile, 'artist' | 'title'>>) => void;
+  onAlbumTrackSelect: (index: number) => void;
+  onAlbumCoverChange: (file: File) => void;
+  onAlbumNext: () => void;
+  albumImporting: boolean;
+  albumError: string;
+  onClearAlbum: () => void;
+
   audio: DropzoneFile;
   image: DropzoneFile;
   srt: DropzoneFile;
@@ -11,12 +24,19 @@ interface Props {
   onSrtChange: (file: File) => void;
 }
 
-export default function MediaUploader({ audio, image, srt, onAudioChange, onImageChange, onSrtChange }: Props) {
+export default function MediaUploader({ audio, image, srt, onAudioChange, onImageChange, onSrtChange, albumQueue, albumIndex, onAlbumZip, onAlbumTrackChange, onAlbumTrackSelect, onAlbumCoverChange, onAlbumNext, albumImporting, albumError, onClearAlbum }: Props) {
   const handleFile =
     (cb: (f: File) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
       const f = e.target.files?.[0];
       if (f) cb(f);
     };
+
+  const handleAlbumZip = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) onAlbumZip(file);
+  };
+  const activeTrack = albumQueue[albumIndex];
 
   return (
     <section className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-5 shadow-xl">
@@ -24,6 +44,21 @@ export default function MediaUploader({ audio, image, srt, onAudioChange, onImag
         <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs">1</span>
         Select Audio, Cover Art &amp; Subtitles
       </h2>
+
+      <div className="mb-4 rounded-xl border border-indigo-500/25 bg-indigo-500/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h3 className="text-sm font-semibold">Import a full album</h3><p className="mt-1 text-xs text-[var(--text-2)]">Choose a ZIP with audio tracks, optional cover art, and flexible folder/naming layouts. Files stay on this device.</p></div>
+          <label className="cursor-pointer rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500">{albumImporting ? 'Inspecting ZIP…' : 'Choose album ZIP'}<input type="file" accept=".zip,application/zip" className="hidden" onChange={handleAlbumZip} disabled={albumImporting} /></label>
+        </div>
+        {albumError && <p role="alert" className="mt-3 text-sm text-rose-300">{albumError}</p>}
+        {albumQueue.length > 0 && activeTrack && <div className="mt-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-indigo-300">Track {albumIndex + 1} of {albumQueue.length} · Next is always your choice</p><button type="button" className="text-xs text-[var(--text-3)] hover:text-[var(--text-1)]" onClick={onClearAlbum}>Clear album queue</button></div>
+          <select className="w-full rounded-lg border border-[var(--border-input)] bg-[var(--bg-input)] px-3 py-2 text-sm" aria-label="Select album track" value={albumIndex} onChange={(event) => onAlbumTrackSelect(Number(event.target.value))}>{albumQueue.map((track, index) => <option key={`${track.file.name}-${index}`} value={index}>{index + 1}. {track.title} — {track.artist || 'Unknown artist'}</option>)}</select>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><input className="w-full rounded-lg border border-[var(--border-input)] bg-[var(--bg-input)] px-3 py-2 text-sm" aria-label="Album track title" value={activeTrack.title} onChange={(event) => onAlbumTrackChange(albumIndex, { title: event.target.value })} /><input className="w-full rounded-lg border border-[var(--border-input)] bg-[var(--bg-input)] px-3 py-2 text-sm" aria-label="Album track artist" value={activeTrack.artist} onChange={(event) => onAlbumTrackChange(albumIndex, { artist: event.target.value })} /></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-[var(--text-3)]">{activeTrack.file.name}{activeTrack.cover ? ` · Cover: ${activeTrack.cover.name}` : ' · No matched cover art'}</p><div className="flex gap-2"><label className="cursor-pointer rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold">Set cover<input type="file" accept="image/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) onAlbumCoverChange(file); }} /></label><button type="button" className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white" onClick={onAlbumNext}>{albumIndex === albumQueue.length - 1 ? 'Load this track' : 'Load track into editor'}</button></div></div>
+          <p className="text-[11px] text-[var(--text-3)]">Tracks are loaded one at a time; advancing changes the active track only when you choose.</p>
+        </div>}
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Audio */}

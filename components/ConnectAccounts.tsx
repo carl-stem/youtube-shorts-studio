@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 
 interface AccountStatus {
   kvConfigured: boolean;
+  authenticated: boolean;
   google:  { channelName: string; connected: boolean } | null;
   tiktok:  { channelName: string; connected: boolean } | null;
 }
@@ -22,9 +23,14 @@ export default function ConnectAccounts() {
 
   useEffect(() => { refresh(); }, []);
 
+  const [actionError, setActionError] = useState('');
   const disconnect = async (platform: 'google' | 'tiktok') => {
-    await fetch('/api/auth/disconnect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform }) });
-    refresh();
+    setActionError('');
+    try {
+      const response = await fetch('/api/auth/disconnect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform }) });
+      if (!response.ok) throw new Error('Disconnect failed. Please try again.');
+      await refresh();
+    } catch (error) { setActionError(error instanceof Error ? error.message : 'Disconnect failed.'); }
   };
 
   if (loading) return null;
@@ -34,8 +40,8 @@ export default function ConnectAccounts() {
       <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-xs text-amber-300 flex items-start gap-2">
         <span className="text-lg shrink-0">🔑</span>
         <div>
-          <strong>One-click publishing not configured.</strong>{' '}
-          Add <code className="bg-amber-500/20 px-1 rounded">KV_REST_API_URL</code>, <code className="bg-amber-500/20 px-1 rounded">GOOGLE_CLIENT_ID/SECRET</code>, and <code className="bg-amber-500/20 px-1 rounded">TIKTOK_CLIENT_KEY/SECRET</code> to Vercel env vars.{' '}
+          <strong>Account connection is not available.</strong>{' '}
+          Configure secure server-side token storage, then add <code className="bg-amber-500/20 px-1 rounded">KV_REST_API_URL</code>, <code className="bg-amber-500/20 px-1 rounded">GOOGLE_CLIENT_ID/SECRET</code>, and <code className="bg-amber-500/20 px-1 rounded">TIKTOK_CLIENT_KEY/SECRET</code> to Vercel env vars.{' '}
           See <strong>SETUP.md</strong> for instructions.
         </div>
       </div>
@@ -47,6 +53,8 @@ export default function ConnectAccounts() {
       <h3 className="text-sm font-semibold text-[var(--text-1)] flex items-center gap-2">
         <span className="text-base">🔗</span> Publishing Accounts
       </h3>
+      {actionError && <p role="alert" className="text-xs text-rose-300">{actionError}</p>}
+      {!status.authenticated && <p className="text-xs text-[var(--text-3)]">Connect a provider to create a private server-side session; its tokens are isolated from other browsers.</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* YouTube */}
         <div className={`flex items-center justify-between p-3 rounded-xl border ${status.google ? 'border-red-500/40 bg-red-500/5' : 'border-[var(--border)] bg-[var(--bg-surface2)]'}`}>
