@@ -7,14 +7,15 @@ interface Props {
   onSaveProject: () => void;
   onLoadProject: () => void;
   onOpenAnalytics?: () => void;
+  showBrand?: boolean;
 }
 
-export default function Header({ codecLabel, onSaveProject, onLoadProject, onOpenAnalytics }: Props) {
+export default function Header({ codecLabel, onSaveProject, onLoadProject, onOpenAnalytics, showBrand = true }: Props) {
   return (
     <header className="border-b border-[var(--border)] bg-[var(--bg-header)] backdrop-blur-md sticky top-0 z-30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         {/* Left: logo + title + tagline */}
-        <div className="flex items-center gap-3 shrink-0">
+        {showBrand && <div className="flex items-center gap-3 shrink-0">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/25 shrink-0">
             <svg viewBox="0 0 40 40" className="w-6 h-6" fill="none">
               <rect x="6"  y="22" width="4" height="12" rx="2" fill="white" opacity="0.9"/>
@@ -30,7 +31,7 @@ export default function Header({ codecLabel, onSaveProject, onLoadProject, onOpe
             </h1>
             <p className="text-xs text-[var(--text-3)] hidden sm:block">Create · Clip · Share</p>
           </div>
-        </div>
+        </div>}
 
         {/* Center: Save / Load buttons (desktop only) */}
         <div className="hidden md:flex items-center gap-2">
