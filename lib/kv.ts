@@ -13,11 +13,29 @@ export async function kvGet<T>(key: string): Promise<T | null> {
   } catch { return null; }
 }
 
+// Atomically reads and removes a value; used for one-time OAuth state tokens.
+export async function kvGetDel<T>(key: string): Promise<T | null> {
+  if (!isKVConfigured()) return null;
+  try {
+    const { kv } = await import('@vercel/kv');
+    return await kv.getdel<T>(key);
+  } catch { return null; }
+}
+
 export async function kvSet(key: string, value: unknown): Promise<boolean> {
   if (!isKVConfigured()) return false;
   try {
     const { kv } = await import('@vercel/kv');
     await kv.set(key, value);
+    return true;
+  } catch { return false; }
+}
+
+export async function kvSetWithExpiry(key: string, value: unknown, ttlSeconds: number): Promise<boolean> {
+  if (!isKVConfigured()) return false;
+  try {
+    const { kv } = await import('@vercel/kv');
+    await kv.set(key, value, { ex: ttlSeconds });
     return true;
   } catch { return false; }
 }

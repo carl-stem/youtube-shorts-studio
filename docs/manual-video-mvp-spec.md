@@ -1,9 +1,11 @@
 # Shorts Studio — Manual Video MVP Product Spec
 
-**Status:** Proposed
+**Status:** Proposed · integrated build verification in progress
 **Last updated:** 2026-10-19
 **Audience:** Product, design, and engineering
 **Product mode:** Manual editing; no agent is required to complete the workflow
+
+> Verification note (2026-10-19): static production build, TypeScript check, and media-helper tests passed. Browser smoke verified the audio home, switch-confirmation modal, and video empty state. Browser console reports Next.js hydration errors on initial load and after switching modes; video upload/edit/render is therefore not end-to-end verified. Account publishing cannot be exercised without provider OAuth credentials and configured KV.
 
 ## 1. Product intent
 
@@ -15,7 +17,7 @@ The existing audio visualizer remains available as its own creation path. Video 
 
 ## 2. Current product baseline
 
-The repository already has a four-step audio workflow, 1080×1920 canvas preview, audio segment editing, SRT captions, local rendering/export, project settings save/load, Whisper transcription for audio, and YouTube/TikTok API routes. It does not currently import or edit source video. Project save/load stores settings and media names, not the underlying source media. The publishing UI is not connected to the main Studio workflow, and the current token store is not scoped per user.
+The repository has a four-step audio workflow and a separate video workflow with local video import, ZIP review, trim/crop, title/caption overlays, and browser-side rendering/export. Project persistence for video source media and integrated review/publish are not complete. Publishing endpoints now use session-keyed provider tokens and upload ownership records; OAuth callbacks validate and atomically consume state and rotate the bearer session. TikTok delivery currently uses inbox mode only; YouTube upload and provider processing checks are implemented, but external-account journeys still require configured OAuth credentials and KV for verification.
 
 This spec describes proposed behavior; existing features should not be represented as complete against these criteria until verified in the integrated workflow.
 
@@ -58,7 +60,7 @@ This spec describes proposed behavior; existing features should not be represent
 2. Implement provider-specific file validation, transfer progress/retry, processing status, and truthful final states.
 3. Require a final preview and explicit publish confirmation. Do not imply that “uploaded” means “published.”
 
-P2 can ship later than the local-export MVP. If publishing is included in a release, its account-isolation and provider-approval gates are launch blockers, not optional polish.
+P2 can ship later than the local-export MVP. If publishing is included in a release, its account-isolation and provider-approval gates are launch blockers, not optional polish. Current status: implemented partially and not release verified. TikTok Direct Post is intentionally not enabled; inbox delivery is used. YouTube `processingDetails.processingStatus === succeeded` is reported as processing complete, not publication. TikTok status is checked against the creator-specific request. No statement here asserts provider approval, cross-account isolation proof, or public visibility.
 
 ## 5. Core user journey
 
@@ -215,7 +217,7 @@ Acceptance criteria:
 
 ## 7. Quality and release gates
 
-- **Functional:** complete every P0 story in the supported browser/device matrix; retain the current audio workflow.
+- **Functional:** complete every P0 story in the supported browser/device matrix; retain the current audio workflow. Current status: partial. Audio home and video empty-state/mode-switch interaction render in a browser. Hydration warnings/errors remain; import-through-render/export and supported-browser matrix remain unverified.
 - **Novice usability:** in a moderated test with five first-time users who do not identify as video editors, at least four complete import → trim → crop → title/caption → preview → export without facilitator intervention. Target median time to first export: five minutes or less, measured from entering the video workflow with a prepared sample asset.
 - **Output quality:** validate resolution, aspect ratio, codec, frame rate, duration, audio presence/sync, crop, and caption timing on exported files—not just the in-app preview.
 - **Failure safety:** test corrupt media, unsupported codec, invalid ZIP paths, limit violations, cancellation, and render failure; none may destroy previously imported media or claim a successful export.

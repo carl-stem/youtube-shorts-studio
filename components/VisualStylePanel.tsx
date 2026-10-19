@@ -109,6 +109,17 @@ export default function VisualStylePanel({ vizConfig, onChange }: Props) {
         </div>
       </div>
 
+      {/* Creator overlay */}
+      <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--bg-surface2)] p-4">
+        <div><h3 className="text-xs font-semibold text-[var(--text-1)]">Creator overlay</h3><p className="mt-1 text-[11px] text-[var(--text-3)]">Text, emoji and a link are burned into both preview and export; links appear as text, not clickable in the rendered video.</p></div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div><label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">Emoji</label><input type="text" maxLength={8} value={vizConfig.overlayEmoji ?? ''} onChange={(e) => set('overlayEmoji', e.target.value)} placeholder="✨" className={inputCls} /></div>
+          <div><label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">Link or handle</label><input type="text" maxLength={100} value={vizConfig.overlayLink ?? ''} onChange={(e) => set('overlayLink', e.target.value)} placeholder="example.com / @handle" className={inputCls} /></div>
+          <div><label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">Overlay position</label><select value={vizConfig.overlayPosition ?? 'top'} onChange={(e) => set('overlayPosition', e.target.value as VizConfig['overlayPosition'])} className={selectCls}><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></div>
+          <div><label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">Overlay treatment</label><select value={vizConfig.overlayStyle ?? 'pill'} onChange={(e) => set('overlayStyle', e.target.value as VizConfig['overlayStyle'])} className={selectCls}><option value="pill">Rounded pill</option><option value="banner">Banner</option><option value="outline">Outline</option></select></div>
+        </div>
+      </div>
+
       {/* CTA / Watermark */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>

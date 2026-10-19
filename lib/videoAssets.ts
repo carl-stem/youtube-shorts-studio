@@ -6,12 +6,13 @@ export const VIDEO_ZIP_LIMITS = {
   fileBytes: 150 * 1024 * 1024,
   entries: 100,
   videos: 20,
+  audioTracks: 20,
   compressionRatio: 200,
 } as const;
 
 export interface ZipMediaCandidate {
   name: string;
-  kind: 'video' | 'captions';
+  kind: 'video' | 'captions' | 'audio' | 'image';
   compressedSize: number;
   expandedSize: number;
   compressionMethod: number;
@@ -22,15 +23,19 @@ export interface ZipMediaCandidate {
 
 export interface ExtractedMedia {
   file: File;
-  kind: 'video' | 'captions';
+  kind: ZipMediaCandidate['kind'];
 }
 
 const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'mov', 'm4v']);
+const AUDIO_EXTENSIONS = new Set(['wav', 'mp3', 'm4a', 'aac', 'ogg', 'flac', 'aiff', 'aif']);
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp']);
 const CAPTION_EXTENSIONS = new Set(['srt', 'vtt']);
 
 function mediaKind(name: string): ZipMediaCandidate['kind'] | null {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
   if (VIDEO_EXTENSIONS.has(ext)) return 'video';
+  if (AUDIO_EXTENSIONS.has(ext)) return 'audio';
+  if (IMAGE_EXTENSIONS.has(ext)) return 'image';
   if (CAPTION_EXTENSIONS.has(ext)) return 'captions';
   return null;
 }
@@ -81,6 +86,7 @@ export async function listZipMedia(file: File): Promise<ZipMediaCandidate[]> {
   const candidates: ZipMediaCandidate[] = [];
   let expandedTotal = 0;
   let videoTotal = 0;
+  let audioTotal = 0;
   let cursor = centralOffset;
   for (let i = 0; i < entryCount; i++) {
     if (cursor + 46 > centralOffset + centralSize || view.getUint32(cursor, true) !== 0x02014b50) {
@@ -126,6 +132,9 @@ export async function listZipMedia(file: File): Promise<ZipMediaCandidate[]> {
       }
       if (kind === 'video' && ++videoTotal > VIDEO_ZIP_LIMITS.videos) {
         throw new Error(`ZIP contains more than ${VIDEO_ZIP_LIMITS.videos} videos.`);
+      }
+      if (kind === 'audio' && ++audioTotal > VIDEO_ZIP_LIMITS.audioTracks) {
+        throw new Error(`ZIP contains more than ${VIDEO_ZIP_LIMITS.audioTracks} audio tracks.`);
       }
       candidates.push({ name, kind, compressedSize, expandedSize, compressionMethod: method, flags, crc32, localHeaderOffset });
     }
@@ -216,7 +225,7 @@ export async function extractZipMedia(file: File, candidates: ZipMediaCandidate[
       }
     }
     if (calculateCrc32(content) !== candidate.crc32) throw new Error(`ZIP entry checksum did not match: ${candidate.name}`);
-    const type = candidate.kind === 'video' ? videoMime(candidate.name) : captionMime(candidate.name);
+    const type = mediaMime(candidate.kind, candidate.name);
     const filename = candidate.name.split('/').pop() || 'media';
     const contentBuffer = content.slice().buffer as ArrayBuffer;
     extracted.push({ file: new File([contentBuffer], filename, { type }), kind: candidate.kind });
@@ -232,8 +241,23 @@ export function videoMime(name: string): string {
   return 'video/mp4';
 }
 
-function captionMime(name: string): string {
-  return name.toLowerCase().endsWith('.vtt') ? 'text/vtt' : 'application/x-subrip';
+function mediaMime(kind: ZipMediaCandidate['kind'], name: string): string {
+  if (kind === 'video') return videoMime(name);
+  if (kind === 'captions') return name.toLowerCase().endsWith('.vtt') ? 'text/vtt' : 'application/x-subrip';
+  const ext = name.split('.').pop()?.toLowerCase();
+  if (kind === 'audio') {
+    if (ext === 'wav') return 'audio/wav';
+    if (ext === 'mp3') return 'audio/mpeg';
+    if (ext === 'm4a') return 'audio/mp4';
+    if (ext === 'aac') return 'audio/aac';
+    if (ext === 'ogg') return 'audio/ogg';
+    if (ext === 'flac') return 'audio/flac';
+    if (ext === 'aiff' || ext === 'aif') return 'audio/aiff';
+  }
+  if (ext === 'png') return 'image/png';
+  if (ext === 'webp') return 'image/webp';
+  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+  return 'application/octet-stream';
 }
 
 export function parseCaptionFile(text: string): SRTCue[] {

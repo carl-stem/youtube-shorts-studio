@@ -11,6 +11,10 @@ import { getSupportedMimeType } from '../lib/mediaCodec';
 import { parseSRT } from '../lib/srtParser';
 import { serializeProject, downloadProject, loadProjectFromFile } from '../lib/projectSerializer';
 import { useToast } from '../hooks/useToast';
+import { buildAlbumQueue } from '../lib/audioAlbum';
+import { listZipMedia, extractZipMedia } from '../lib/videoAssets';
+import type { ZipMediaCandidate } from '../lib/videoAssets';
+import type { AlbumTrackFile } from '../types';
 
 import Header from './Header';
 import MediaUploader from './MediaUploader';
@@ -32,6 +36,7 @@ const DEFAULT_VIZ: VizConfig = {
   showProgress: true, showTimecode: true, showCC: true,
   spectrumStyle: 'bars', colorTheme: 'indigo-pink', bgStyle: 'blur',
   exportQuality: 6000000, ctaText: '', ctaPosition: 'top',
+  overlayEmoji: '', overlayLink: '', overlayPosition: 'top', overlayStyle: 'pill',
 };
 
 const DEFAULT_META: TrackMeta = {
@@ -57,6 +62,11 @@ export default function Studio() {
   const [srtFile, setSrtFile] = useState<{ name: string; meta: string }>({
     name: 'Choose .SRT Subtitle File', meta: 'Optional – for closed captions',
   });
+  const [albumQueue, setAlbumQueue] = useState<AlbumTrackFile[]>([]);
+  const [albumIndex, setAlbumIndex] = useState(0);
+  const [albumImporting, setAlbumImporting] = useState(false);
+  const [albumError, setAlbumError] = useState('');
+  const [albumReview, setAlbumReview] = useState<{ file: File; candidates: ZipMediaCandidate[] } | null>(null);
 
   const [trackMeta, setTrackMeta] = useState<TrackMeta>(DEFAULT_META);
   const [vizConfig, setVizConfig]  = useState<VizConfig>(DEFAULT_VIZ);
@@ -71,7 +81,7 @@ export default function Studio() {
   const [previewTimeStr, setPreviewTimeStr]     = useState('00:00 / 00:58');
   const [progress, setProgress]                 = useState<{ pct: number; status: string }>({ pct: 0, status: 'Ready' });
   const [logs, setLogs]                         = useState<string[]>([
-    `[${timestamp()}] Ready. Load a .wav audio file and album cover above to begin.`,
+    `[${timestamp()}] Ready. Load an audio file or import an album ZIP above to begin.`,
   ]);
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   // feature support (checked client-side on mount)
@@ -286,6 +296,33 @@ export default function Studio() {
   }, [userSegments, audioDuration, trackMeta]); // audioDuration triggers recalc
 
   // ── file handlers ──
+  const handleAlbumZip = useCallback(async (file: File) => {
+    setAlbumError(''); setAlbumImporting(true);
+    try {
+      const candidates = await listZipMedia(file);
+      const audio = candidates.filter((candidate) => candidate.kind === 'audio');
+      if (!audio.length) throw new Error('No supported audio tracks were found in this ZIP.');
+      setAlbumReview({ file, candidates });
+    } catch (err: unknown) {
+      setAlbumError(err instanceof Error ? err.message : 'Could not inspect this album ZIP.');
+    } finally { setAlbumImporting(false); }
+  }, []);
+
+  const confirmAlbumZip = useCallback(async () => {
+    if (!albumReview) return;
+    setAlbumImporting(true); setAlbumError('');
+    try {
+      const selectedMedia = albumReview.candidates.filter((candidate) => candidate.kind === 'audio' || candidate.kind === 'image');
+      const media = await extractZipMedia(albumReview.file, selectedMedia);
+      const queue = buildAlbumQueue(media.filter((item) => item.kind === 'audio').map((item) => item.file), media.filter((item) => item.kind === 'image').map((item) => item.file));
+      if (!queue.length) throw new Error('No supported audio tracks were found in this ZIP.');
+      setAlbumQueue(queue); setAlbumIndex(0); setAlbumReview(null);
+      toast(`${queue.length} album track${queue.length === 1 ? '' : 's'} ready. Choose when to load each one.`, 'success');
+    } catch (err: unknown) {
+      setAlbumError(err instanceof Error ? err.message : 'Could not extract this album ZIP.');
+    } finally { setAlbumImporting(false); }
+  }, [albumReview, toast]);
+
   const handleAudioChange = useCallback(async (file: File) => {
     stopPreviewInternal();
     setAudioFile({ name: file.name, meta: 'Decoding audio…' });
@@ -332,6 +369,15 @@ export default function Studio() {
     };
     reader.readAsDataURL(file);
   }, [log]);
+
+  const loadAlbumTrack = useCallback(async (index = albumIndex) => {
+    const track = albumQueue[index];
+    if (!track) return;
+    await handleAudioChange(track.file);
+    setTrackMeta((meta) => ({ ...meta, title: track.title, artist: track.artist }));
+    if (track.cover) handleImageChange(track.cover);
+    setAlbumIndex(index);
+  }, [albumQueue, albumIndex, handleAudioChange, handleImageChange]);
 
   const handleSrtChange = useCallback((file: File) => {
     const reader = new FileReader();
@@ -555,8 +601,9 @@ export default function Studio() {
           src.disconnect(); gain.disconnect(); analyser.disconnect();
           if (stopFlagRef.current) { resolve(); return; }
           const blob = new Blob(chunks, { type: detectedFormat.mime || 'video/webm' });
+          if (!blob.size) { toast('Render failed: browser returned an empty file.', 'error'); resolve(); return; }
           const url  = URL.createObjectURL(blob);
-          setDownloads((prev) => [...prev, { filename: outFile, url, sizeBytes: blob.size }]);
+          setDownloads((prev) => [...prev, { filename: outFile, url, sizeBytes: blob.size, durationSeconds: segment.duration }]);
           // Auto-trigger browser download
           const a = document.createElement('a');
           a.href = url; a.download = outFile;
@@ -601,9 +648,9 @@ export default function Studio() {
     isRenderingRef.current = false;
     setIsRendering(false);
     if (!stopFlagRef.current) {
-      setProgress({ pct: 100, status: 'All Shorts finished!' });
-      log('[✔] Batch complete! Files downloaded.');
-      toast(`Export complete — ${segs.length} clip${segs.length !== 1 ? 's' : ''} saved!`, 'success');
+      setProgress({ pct: 100, status: 'Render finished' });
+      log('[✔] Batch render finished. Only completed non-empty files are listed.');
+      toast(`Render finished — ${segs.length} clip${segs.length !== 1 ? 's' : ''} requested. Check completed exports below.`, 'success');
     } else {
       setProgress((p) => ({ ...p, status: 'Render stopped' }));
     }
@@ -682,7 +729,18 @@ export default function Studio() {
                 onAudioChange={handleAudioChange}
                 onImageChange={handleImageChange}
                 onSrtChange={handleSrtChange}
+                albumQueue={albumQueue}
+                albumIndex={albumIndex}
+                onAlbumZip={handleAlbumZip}
+                onAlbumTrackChange={(index, patch) => setAlbumQueue((queue) => queue.map((track, itemIndex) => itemIndex === index ? { ...track, ...patch } : track))}
+                onAlbumTrackSelect={(index) => { setAlbumIndex(index); if (albumQueue[index]?.file === decodedAudioFileRef.current) return; void loadAlbumTrack(index); }}
+                onAlbumCoverChange={(file) => { setAlbumQueue((queue) => queue.map((track, index) => index === albumIndex ? { ...track, cover: file } : track)); handleImageChange(file); }}
+                onAlbumNext={() => void loadAlbumTrack()}
+                albumImporting={albumImporting}
+                albumError={albumError}
+                onClearAlbum={() => { setAlbumQueue([]); setAlbumIndex(0); }}
               />
+              {albumReview && <div role="dialog" aria-modal="true" aria-labelledby="album-review-title" className="rounded-2xl border border-indigo-500/30 bg-[var(--bg-surface)] p-5 shadow-xl"><h3 id="album-review-title" className="font-semibold">Review album ZIP · {albumReview.file.name}</h3><p className="mt-2 text-sm text-[var(--text-2)]">Found {albumReview.candidates.filter((candidate) => candidate.kind === 'audio').length} audio tracks and {albumReview.candidates.filter((candidate) => candidate.kind === 'image').length} possible cover image(s). Audio files are processed locally; unsupported files are ignored.</p><div className="mt-4 flex gap-2"><button type="button" disabled={albumImporting} onClick={() => void confirmAlbumZip()} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{albumImporting ? 'Preparing…' : 'Use these tracks'}</button><button type="button" onClick={() => { setAlbumReview(null); setAlbumError(''); }} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm">Cancel</button></div></div>}
               <SpotifySearch onSelect={handleSpotifySelect} />
               <TrackSettings trackMeta={trackMeta} onChange={setTrackMeta} />
               {audioFile.name !== 'Choose .WAV or Audio File' && (

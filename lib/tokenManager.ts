@@ -1,4 +1,5 @@
-import { kvGet, kvSet } from './kv';
+import { kvDel, kvGet, kvSet } from './kv';
+import { cookies } from 'next/headers';
 
 export interface OAuthTokens {
   accessToken: string;
@@ -9,26 +10,33 @@ export interface OAuthTokens {
   channelId?: string;
 }
 
+async function hasSession(sessionId: string): Promise<boolean> {
+  const sessionCookie = cookies().get('oauth_session')?.value;
+  return !!sessionCookie && sessionCookie === sessionId;
+}
+
 // ── Google ────────────────────────────────────────────────────────────────────
 
-export async function getGoogleTokens(): Promise<OAuthTokens | null> {
-  return kvGet<OAuthTokens>('tokens:google');
+export async function getGoogleTokens(sessionId: string): Promise<OAuthTokens | null> {
+  return kvGet<OAuthTokens>(`tokens:google:${sessionId}`);
 }
 
-export async function setGoogleTokens(t: OAuthTokens): Promise<void> {
-  await kvSet('tokens:google', t);
+export async function setGoogleTokens(sessionId: string, t: OAuthTokens): Promise<boolean> {
+  return kvSet(`tokens:google:${sessionId}`, t);
 }
 
-export async function clearGoogleTokens(): Promise<void> {
-  const { kvDel } = await import('./kv');
-  await kvDel('tokens:google');
+export async function clearGoogleTokens(sessionId: string): Promise<void> {
+  await kvDel(`tokens:google:${sessionId}`);
 }
 
-export async function getValidGoogleToken(): Promise<string | null> {
-  const t = await getGoogleTokens();
+export async function getValidGoogleToken(sessionId: string): Promise<string | null> {
+  if (!await hasSession(sessionId)) return null;
+  const { kvGet } = await import('./kv');
+  if (!await kvGet<{ createdAt: number }>(`oauth:session:${sessionId}`)) return null;
+  const t = await getGoogleTokens(sessionId);
   if (!t) return null;
   if (Date.now() < t.expiresAt) return t.accessToken;
-  if (!t.refreshToken) return null;
+  if (!t.refreshToken || !process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) return null;
 
   try {
     const res = await fetch('https://oauth2.googleapis.com/token', {
@@ -49,31 +57,33 @@ export async function getValidGoogleToken(): Promise<string | null> {
       refreshToken: d.refresh_token || t.refreshToken,
       expiresAt: Date.now() + (d.expires_in - 60) * 1000,
     };
-    await setGoogleTokens(fresh);
+    if (!await setGoogleTokens(sessionId, fresh)) return null;
     return fresh.accessToken;
   } catch { return null; }
 }
 
 // ── TikTok ────────────────────────────────────────────────────────────────────
 
-export async function getTikTokTokens(): Promise<OAuthTokens | null> {
-  return kvGet<OAuthTokens>('tokens:tiktok');
+export async function getTikTokTokens(sessionId: string): Promise<OAuthTokens | null> {
+  return kvGet<OAuthTokens>(`tokens:tiktok:${sessionId}`);
 }
 
-export async function setTikTokTokens(t: OAuthTokens): Promise<void> {
-  await kvSet('tokens:tiktok', t);
+export async function setTikTokTokens(sessionId: string, t: OAuthTokens): Promise<boolean> {
+  return kvSet(`tokens:tiktok:${sessionId}`, t);
 }
 
-export async function clearTikTokTokens(): Promise<void> {
-  const { kvDel } = await import('./kv');
-  await kvDel('tokens:tiktok');
+export async function clearTikTokTokens(sessionId: string): Promise<void> {
+  await kvDel(`tokens:tiktok:${sessionId}`);
 }
 
-export async function getValidTikTokToken(): Promise<string | null> {
-  const t = await getTikTokTokens();
+export async function getValidTikTokToken(sessionId: string): Promise<string | null> {
+  if (!await hasSession(sessionId)) return null;
+  const { kvGet } = await import('./kv');
+  if (!await kvGet<{ createdAt: number }>(`oauth:session:${sessionId}`)) return null;
+  const t = await getTikTokTokens(sessionId);
   if (!t) return null;
   if (Date.now() < t.expiresAt) return t.accessToken;
-  if (!t.refreshToken) return null;
+  if (!t.refreshToken || !process.env.TIKTOK_CLIENT_KEY || !process.env.TIKTOK_CLIENT_SECRET) return null;
 
   try {
     const res = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
@@ -94,7 +104,7 @@ export async function getValidTikTokToken(): Promise<string | null> {
       refreshToken: d.refresh_token || t.refreshToken,
       expiresAt:    Date.now() + (d.expires_in - 60) * 1000,
     };
-    await setTikTokTokens(fresh);
+    if (!await setTikTokTokens(sessionId, fresh)) return null;
     return fresh.accessToken;
   } catch { return null; }
 }
