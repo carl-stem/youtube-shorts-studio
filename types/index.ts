@@ -47,3 +47,14 @@ export interface RenderFrameOptions {
   titleText: string;
   artistText: string;
 }
+
+export interface AnalyticsVideo {
+  id: string;
+  title: string;
+  thumbnail: string;
+  publishedAt: string;
+  views: number;
+  likes: number;
+  comments: number;
+  shortsUrl: string;
+}

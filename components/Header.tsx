@@ -6,9 +6,10 @@ interface Props {
   codecLabel: string;
   onSaveProject: () => void;
   onLoadProject: () => void;
+  onOpenAnalytics?: () => void;
 }
 
-export default function Header({ codecLabel, onSaveProject, onLoadProject }: Props) {
+export default function Header({ codecLabel, onSaveProject, onLoadProject, onOpenAnalytics }: Props) {
   return (
     <header className="border-b border-[var(--border)] bg-[var(--bg-header)] backdrop-blur-md sticky top-0 z-30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -47,8 +48,17 @@ export default function Header({ codecLabel, onSaveProject, onLoadProject }: Pro
           </button>
         </div>
 
-        {/* Right: ThemeToggle + codec badge */}
+        {/* Right: analytics + ThemeToggle + codec badge */}
         <div className="flex items-center gap-2 shrink-0">
+          {onOpenAnalytics && (
+            <button
+              onClick={onOpenAnalytics}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--bg-surface2)] hover:bg-[var(--border)] text-[var(--text-2)] border border-[var(--border)] transition cursor-pointer"
+              title="YouTube Analytics"
+            >
+              📊
+            </button>
+          )}
           <ThemeToggle />
           <span className="text-xs mono px-3 py-1.5 rounded-lg bg-[var(--bg-surface2)] text-[var(--text-2)] border border-[var(--border-input)]">
             {codecLabel}

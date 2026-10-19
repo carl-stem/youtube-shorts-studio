@@ -1,6 +1,7 @@
 'use client';
 import type { DownloadItem } from '../types';
 import SocialShare from './SocialShare';
+import PublishClip from './PublishClip';
 
 interface Props {
   segmentCount: number;
@@ -9,6 +10,7 @@ interface Props {
   downloads: DownloadItem[];
   onRenderAll: () => void;
   onStop: () => void;
+  accounts?: { google: { channelName: string } | null; tiktok: { channelName: string } | null } | null;
 }
 
 export default function ExportPanel({ segmentCount, isRendering, progress, downloads, onRenderAll, onStop }: Props) {
