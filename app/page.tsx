@@ -51,7 +51,7 @@ export default function Home() {
               aria-label={`Switch to ${mode === 'audio' ? 'Video' : 'Audio'} Short workflow`}
               className={`relative h-7 w-14 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${mode === 'video' ? 'bg-indigo-600' : 'bg-slate-600'}`}
             >
-              <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${mode === 'video' ? 'translate-x-8' : 'translate-x-1'}`} />
+              <span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${mode === 'video' ? 'translate-x-7' : 'translate-x-0'}`} />
             </button>
             <span className={`text-xs font-semibold ${mode === 'video' ? 'text-[var(--text-1)]' : 'text-[var(--text-3)]'}`}>Video</span>
           </div>

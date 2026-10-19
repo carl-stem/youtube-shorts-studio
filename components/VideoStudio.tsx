@@ -43,6 +43,12 @@ const OUTPUT_WIDTH = 1080;
 const OUTPUT_HEIGHT = 1920;
 const inputClass = 'w-full rounded-xl border border-[var(--border-input)] bg-[var(--bg-input)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-indigo-500';
 const buttonClass = 'rounded-xl border border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-2.5 text-sm font-semibold text-[var(--text-1)] transition hover:border-indigo-500/60 disabled:cursor-not-allowed disabled:opacity-40';
+const VIDEO_STEPS = [
+  { number: 1, title: 'Add video', short: 'Import' },
+  { number: 2, title: 'Choose a moment', short: 'Trim' },
+  { number: 3, title: 'Make it yours', short: 'Style' },
+  { number: 4, title: 'Review & export', short: 'Export' },
+] as const;
 
 function makeId() {
   return Math.random().toString(36).slice(2, 10);
@@ -174,6 +180,8 @@ function drawVerticalFrame(
 }
 
 export default function VideoStudio() {
+  const [currentStep, setCurrentStep] = useState(1);
+  const [furthestStep, setFurthestStep] = useState(1);
   const [assets, setAssets] = useState<VideoAsset[]>([]);
   const [clips, setClips] = useState<VideoClip[]>([]);
   const [selectedClipId, setSelectedClipId] = useState('');
@@ -351,6 +359,7 @@ export default function VideoStudio() {
       setAssets((previous) => [...previous, ...loaded]);
       setClips((previous) => [...previous, ...newClips]);
       setSelectedClipId((previous) => previous || newClips[0].id);
+      setFurthestStep((step) => Math.max(step, 2));
       setNotice(`${loaded.length} video${loaded.length === 1 ? '' : 's'} ready in your project.`);
     }
     const allFailures = [...failures, ...(unsupportedCount ? [`${unsupportedCount} unsupported file${unsupportedCount === 1 ? '' : 's'} skipped.`] : [])];
@@ -431,6 +440,7 @@ export default function VideoStudio() {
     const removedClips = clips.filter((clip) => clip.assetId === assetId);
     const remainingClips = clips.filter((clip) => clip.assetId !== assetId);
     if (removedClips.some((clip) => clip.id === selectedClipId)) setSelectedClipId(remainingClips[0]?.id ?? '');
+    if (!remainingClips.length) { setCurrentStep(1); setFurthestStep(1); }
     setAssets((previous) => previous.filter((entry) => entry.id !== assetId));
     setClips(remainingClips);
     setNotice('Video removed from this project.');
@@ -635,18 +645,61 @@ export default function VideoStudio() {
     document.body.appendChild(anchor); anchor.click(); anchor.remove();
   };
 
+  const advanceStep = (step: number) => {
+    setFurthestStep((furthest) => Math.max(furthest, step));
+    setCurrentStep(step);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToStep = (step: number) => {
+    if (step <= furthestStep && (step === 1 || (selectedClip && selectedAsset))) advanceStep(step);
+  };
+
   return (
     <div className="min-h-[calc(100vh-5rem)] w-full">
-      <div className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-6 px-4 py-6 sm:px-6 lg:grid-cols-12">
-        <section className="order-2 space-y-5 lg:order-1 lg:col-span-7">
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-5 shadow-xl">
+      <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-6 lg:px-8">
+        <div className="overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-600/10 via-[var(--bg-surface)] to-fuchsia-500/10 shadow-lg shadow-indigo-900/5">
+          <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-500">Your video Short, step by step</p>
+              <h2 className="mt-1 text-lg font-bold tracking-tight">From raw footage to ready to share</h2>
+              <p className="mt-1 text-xs text-[var(--text-2)]">Your videos stay on this device. You can move back and refine any step.</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2 self-start rounded-full border border-fuchsia-500/20 bg-fuchsia-500/5 px-3 py-1.5 text-xs font-semibold text-fuchsia-600 dark:text-fuchsia-300 sm:self-auto">
+              <span aria-hidden="true">✦</span> No editing experience needed
+            </div>
+          </div>
+          <nav aria-label="Video creation steps" className="border-t border-indigo-500/10 bg-[var(--bg-surface)]/60 px-3 py-3 sm:px-6">
+            <ol className="flex items-start">
+              {VIDEO_STEPS.map((step, index) => {
+                const active = currentStep === step.number;
+                const complete = step.number < currentStep;
+                const available = step.number <= furthestStep && (step.number === 1 || (!!selectedClip && !!selectedAsset));
+                return (
+                  <li key={step.number} className="flex min-w-0 flex-1 items-start">
+                    <button type="button" onClick={() => navigateToStep(step.number)} disabled={!available} aria-current={active ? 'step' : undefined} className={`group flex min-w-0 flex-col items-center gap-1.5 text-center disabled:cursor-not-allowed ${available ? 'cursor-pointer' : 'cursor-default'}`}>
+                      <span className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-all ${active ? 'scale-110 bg-gradient-to-br from-indigo-600 to-fuchsia-600 text-white ring-4 ring-indigo-500/15 shadow-md shadow-indigo-600/20' : complete ? 'bg-emerald-500 text-white' : 'border-2 border-[var(--border)] bg-[var(--bg-surface2)] text-[var(--text-3)]'} ${available && !active ? 'group-hover:border-indigo-400' : ''}`}>{complete ? '✓' : step.number}</span>
+                      <span className={`max-w-full truncate text-[10px] font-semibold sm:text-xs ${active ? 'text-indigo-500 dark:text-indigo-300' : complete ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--text-3)]'}`}><span className="sm:hidden">{step.short}</span><span className="hidden sm:inline">{step.title}</span></span>
+                    </button>
+                    {index < VIDEO_STEPS.length - 1 && <span aria-hidden="true" className={`mx-1 mt-[17px] h-0.5 min-w-2 flex-1 rounded-full sm:mx-3 ${complete ? 'bg-gradient-to-r from-emerald-500 to-indigo-500' : 'bg-[var(--border)]'}`} />}
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
+        </div>
+      </div>
+      <div className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-6 px-4 py-5 sm:px-6 lg:grid-cols-12 lg:px-8">
+        <section className="order-1 space-y-5 lg:col-span-7">
+          {currentStep === 1 && <section className="step-enter rounded-2xl border border-indigo-500/15 bg-[var(--bg-surface)] p-5 shadow-xl shadow-indigo-950/5">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="font-semibold">1. Add your videos</h2>
+                <div className="mb-1 inline-flex items-center gap-2 rounded-full bg-indigo-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-300"><span>Step 1</span><span className="h-1 w-1 rounded-full bg-indigo-400" />Start with your footage</div>
+                <h2 className="font-semibold">Add your videos</h2>
                 <p className="mt-1 text-xs text-[var(--text-2)]">MP4, WebM, MOV, or M4V · up to {MAX_VIDEO_BYTES / 1024 / 1024} MB per video · {VIDEO_ZIP_LIMITS.expandedBytes / 1024 / 1024} MB per project</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button className={buttonClass} onClick={() => pickerRef.current?.click()} disabled={importing || exporting}>Choose videos</button>
+                <button className="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 transition hover:from-indigo-500 hover:to-violet-500 disabled:cursor-not-allowed disabled:opacity-40" onClick={() => pickerRef.current?.click()} disabled={importing || exporting}>Choose videos</button>
                 <button className={buttonClass} onClick={() => zipPickerRef.current?.click()} disabled={importing || exporting}>Choose a ZIP folder</button>
               </div>
               <input ref={pickerRef} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" multiple className="hidden" onChange={onPickVideos} />
@@ -695,13 +748,15 @@ export default function VideoStudio() {
                 <div className="text-3xl">🎞️</div><h3 className="mt-2 text-sm font-semibold">Start with a video you already have</h3><p className="mt-1 text-xs text-[var(--text-2)]">Choose a video or a ZIP archive to see your footage here.</p>
               </div>
             )}
-          </section>
+            <div className="mt-5 flex justify-end border-t border-indigo-500/10 pt-4">
+              <button type="button" onClick={() => advanceStep(2)} disabled={!assets.length || importing || exporting} className="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 transition hover:from-indigo-500 hover:to-violet-500 disabled:cursor-not-allowed disabled:opacity-40">{importing ? 'Importing…' : assets.length ? 'Choose a moment →' : 'Add a video to continue'}</button>
+            </div>
+          </section>}
 
-          {selectedClip && selectedAsset && (
-            <>
-              <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-5 shadow-xl">
+          {selectedClip && selectedAsset && currentStep === 2 && (
+              <section className="step-enter rounded-2xl border border-violet-500/15 bg-[var(--bg-surface)] p-5 shadow-xl shadow-violet-950/5">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <div><h2 className="font-semibold">2. Choose the moment</h2><p className="mt-1 text-xs text-[var(--text-2)]">Play and scrub, then set the beginning and end of your Short.</p></div>
+                  <div><div className="mb-1 inline-flex items-center gap-2 rounded-full bg-violet-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-violet-600 dark:text-violet-300"><span>Step 2</span><span className="h-1 w-1 rounded-full bg-violet-400" />Find the best moment</div><h2 className="font-semibold">Choose your moment</h2><p className="mt-1 text-xs text-[var(--text-2)]">Play and scrub, then set the beginning and end of your Short.</p></div>
                   <button className={buttonClass} onClick={addOutputClip} disabled={exporting}>+ Add another clip from this video</button>
                 </div>
                 <label className="mb-3 block text-xs font-medium text-[var(--text-2)]">Clip to edit</label>
@@ -727,10 +782,13 @@ export default function VideoStudio() {
                 </div>
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-2)]"><span>Selected length: <strong className="text-[var(--text-1)]">{clipDuration.toFixed(1)} seconds</strong></span><span>{clipDuration > MAX_CLIP_SECONDS ? `Maximum export length is ${MAX_CLIP_SECONDS} seconds.` : 'Up to 3 minutes per export.'}</span></div>
                 <p className="mt-1 text-xs text-[var(--text-3)]">Captions use the source video’s timestamps; trim the range to include the moments you want captioned.</p>
+                <div className="mt-5 flex items-center justify-between border-t border-violet-500/10 pt-4"><button type="button" onClick={() => advanceStep(1)} className={buttonClass}>← Add videos</button><button type="button" onClick={() => advanceStep(3)} disabled={exporting} className="rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-violet-600/20 transition hover:from-violet-500 hover:to-fuchsia-500 disabled:opacity-40">Style your Short →</button></div>
               </section>
+          )}
 
-              <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-5 shadow-xl">
-                <h2 className="font-semibold">3. Make it yours</h2><p className="mt-1 text-xs text-[var(--text-2)]">Drag the preview to reposition when Fill is selected.</p>
+          {selectedClip && selectedAsset && currentStep === 3 && <>
+              <section className="step-enter rounded-2xl border border-fuchsia-500/15 bg-[var(--bg-surface)] p-5 shadow-xl shadow-fuchsia-950/5">
+                <div className="mb-1 inline-flex items-center gap-2 rounded-full bg-fuchsia-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-fuchsia-600 dark:text-fuchsia-300"><span>Step 3</span><span className="h-1 w-1 rounded-full bg-fuchsia-400" />Add your style</div><h2 className="font-semibold">Make it yours</h2><p className="mt-1 text-xs text-[var(--text-2)]">Drag the preview to reposition when Fill is selected.</p>
                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div><label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">Frame your video</label><select className={inputClass} value={selectedClip.framing} onChange={(event) => updateClip({ framing: event.target.value as VideoClip['framing'], zoom: 1, panX: 0, panY: 0 })}><option value="fill">Fill portrait frame (crop)</option><option value="fit">Fit entire video</option></select></div>
                   <div><label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">Color filter</label><select className={inputClass} value={selectedClip.filter} onChange={(event) => updateClip({ filter: event.target.value as VideoFilter })}><option value="original">Original</option><option value="warm">Warm</option><option value="cool">Cool</option><option value="monochrome">Monochrome</option><option value="vivid">Vivid</option></select></div>
@@ -741,10 +799,12 @@ export default function VideoStudio() {
                     {selectedClip.captions.length > 0 ? <div className="max-h-64 space-y-2 overflow-y-auto">{selectedClip.captions.map((cue, index) => <div key={`${cue.start}-${index}`} className="grid grid-cols-1 gap-2 rounded-xl bg-[var(--bg-surface2)] p-3 sm:grid-cols-[82px_82px_1fr_36px]"><input className={inputClass} type="number" min="0" step="0.1" value={cue.start} aria-label={`Caption ${index + 1} start time`} onChange={(event) => editCue(index, { start: Number(event.target.value) })} /><input className={inputClass} type="number" min="0" step="0.1" value={cue.end} aria-label={`Caption ${index + 1} end time`} onChange={(event) => editCue(index, { end: Number(event.target.value) })} /><input className={inputClass} value={cue.text} aria-label={`Caption ${index + 1} text`} onChange={(event) => editCue(index, { text: event.target.value })} /><button className="rounded-lg text-rose-400 hover:bg-rose-500/10" aria-label={`Delete caption ${index + 1}`} onClick={() => updateClip({ captions: selectedClip.captions.filter((_, cueIndex) => cueIndex !== index) })}>×</button></div>)}</div> : <div className="rounded-xl bg-[var(--bg-surface2)] p-4 text-xs text-[var(--text-3)]">No captions yet. Import an SRT or VTT file to add timed captions.</div>}
                   </div>
                 </div>
+                <div className="mt-5 flex items-center justify-between border-t border-fuchsia-500/10 pt-4"><button type="button" onClick={() => advanceStep(2)} className={buttonClass}>← Choose moment</button><button type="button" onClick={() => advanceStep(4)} disabled={exporting} className="rounded-xl bg-gradient-to-r from-fuchsia-600 to-pink-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-fuchsia-600/20 transition hover:from-fuchsia-500 hover:to-pink-500 disabled:opacity-40">Review your Short →</button></div>
               </section>
+          </>}
 
-              <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-5 shadow-xl">
-                <h2 className="font-semibold">4. Review and export</h2><p className="mt-1 text-xs text-[var(--text-2)]">Export records in real time. Keep this tab open until it finishes.</p>
+          {selectedClip && selectedAsset && currentStep === 4 && <section className="step-enter rounded-2xl border border-emerald-500/15 bg-[var(--bg-surface)] p-5 shadow-xl shadow-emerald-950/5">
+                <div className="mb-1 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-300"><span>Step 4</span><span className="h-1 w-1 rounded-full bg-emerald-400" />Make your final Short</div><h2 className="font-semibold">Review and export</h2><p className="mt-1 text-xs text-[var(--text-2)]">Export records in real time. Keep this tab open until it finishes.</p>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   {!exporting ? <button className="rounded-xl bg-gradient-to-r from-indigo-600 to-pink-600 px-5 py-3 font-semibold text-white shadow-lg shadow-indigo-600/20 hover:from-indigo-500 hover:to-pink-500 disabled:opacity-40" onClick={() => void exportCurrent()} disabled={clipDuration < 0.5 || clipDuration > MAX_CLIP_SECONDS || unsupportedExport || !audioCaptureSupported}>Export this Short · {outputFormat.label}</button> : <button className="rounded-xl bg-rose-600 px-5 py-3 font-semibold text-white hover:bg-rose-500" onClick={() => cancelExportRef.current?.()}>Cancel export</button>}
                   <span role="status" className="text-xs text-[var(--text-2)]">{exportStatus}</span>
@@ -753,12 +813,11 @@ export default function VideoStudio() {
                 {!audioCaptureSupported && <p className="mt-3 rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-200">This browser cannot capture source audio for export. Use current Chrome or Edge to export video with its original audio.</p>}
                 {exporting && <div className="mt-4"><div className="mb-1 flex justify-between text-xs text-[var(--text-2)]"><span>Rendering in real time</span><span>{progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-[var(--bg-surface2)]"><div className="h-full bg-gradient-to-r from-indigo-500 to-pink-500 transition-all" style={{ width: `${progress}%` }} /></div></div>}
                 {downloads.length > 0 && <div className="mt-4 space-y-2"><h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Your exports</h3>{downloads.map((download, index) => <div key={`${download.filename}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-[var(--bg-surface2)] px-3 py-2"><span className="truncate text-xs">{download.filename} · {(download.sizeBytes / 1024 / 1024).toFixed(2)} MB</span><button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500" onClick={() => downloadAgain(download)}>Download</button></div>)}</div>}
-              </section>
-            </>
-          )}
+                <div className="mt-5 flex justify-start border-t border-emerald-500/10 pt-4"><button type="button" onClick={() => advanceStep(3)} className={buttonClass}>← Back to styling</button></div>
+              </section>}
         </section>
 
-        <aside className="order-1 space-y-4 lg:sticky lg:top-20 lg:order-2 lg:col-span-5">
+        <aside className="order-2 space-y-4 lg:sticky lg:top-20 lg:order-2 lg:col-span-5">
           {selectedClip && selectedAsset ? (
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-5">
               <div className="flex items-center justify-between">
