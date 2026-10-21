@@ -120,7 +120,7 @@ function Workspace({ accounts }: { accounts: AccountStatus | null }) {
         <section className="space-y-5 lg:col-span-7">
           {step === 1 && <AddMedia onNext={() => goTo(2)} />}
           {step === 2 && <Arrange selectedId={selectedId} onSelect={setSelectedId} playhead={time} onSeek={seek} onBack={() => goTo(1)} onNext={() => goTo(3)} />}
-          {step === 3 && <MakeItYours selectedId={selectedId} onSelect={setSelectedId} onBack={() => goTo(2)} onNext={() => goTo(4)} />}
+          {step === 3 && <MakeItYours selectedId={selectedId} onSelect={setSelectedId} playhead={time} onSeek={seek} onBack={() => goTo(2)} onNext={() => goTo(4)} />}
           {step === 4 && (
             <ReviewShare player={player} canvas={canvas} accounts={accounts} downloads={downloads}
               onExported={(item) => setDownloads((previous) => [item, ...previous])} onExportingChange={setExporting} onBack={() => goTo(3)} />

@@ -55,6 +55,7 @@ export default function Storyboard({ selectedId, onSelect }: Props) {
                   : <span className="flex h-full items-center justify-center text-2xl text-[var(--text-3)]">🎞️</span>}
                 <span className="absolute left-1.5 top-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">{index + 1}</span>
                 <span className="mono absolute bottom-1.5 right-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] text-white">{formatTimecode(clipLength(clip))}</span>
+                {index > 0 && clip.transitionIn.kind !== 'cut' && <span className="absolute right-1.5 top-1.5 rounded-md bg-fuchsia-600/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">{clip.transitionIn.kind === 'fade' ? 'Fade in' : 'Blend in'}</span>}
                 {clip.muted && <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] text-white" title="Sound off">🔇</span>}
               </span>
               <span className="block truncate px-2 pt-1.5 text-xs font-medium">{media?.name ?? 'Missing video'}</span>

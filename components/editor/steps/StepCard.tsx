@@ -25,3 +25,7 @@ export function StepCard({ step, eyebrow, title, hint, children }: Props) {
     </section>
   );
 }
+
+/** A preset choice button; presets beat sliders for beginners. */
+export const chip = (active: boolean) => `rounded-xl border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${active ? 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-300' : 'border-[var(--border)] bg-[var(--bg-surface2)] hover:border-indigo-500/50'}`;
+export const inputClass = 'w-full rounded-xl border border-[var(--border-input)] bg-[var(--bg-input)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-indigo-500';

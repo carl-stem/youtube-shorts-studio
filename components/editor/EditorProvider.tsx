@@ -4,10 +4,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import type { ReactNode } from 'react';
 import type { Id, Project, VideoMedia } from '../../lib/editor/model';
 import { createProject, makeId } from '../../lib/editor/model';
-import { addMedia } from '../../lib/editor/ops';
+import { addMedia, setMusic } from '../../lib/editor/ops';
 import { createHistory, historyReducer, redoLabel, undoLabel, type History } from '../../lib/editor/history';
 import { FORMATS, type AspectId, type FormatPreset } from '../../lib/render/layout';
-import { isVideoFile, probeVideo } from '../../lib/media/probe';
+import { isAudioFile, isVideoFile, probeAudio, probeVideo } from '../../lib/media/probe';
 
 export const MAX_MEDIA = 20;
 /** New clips from long files start at a minute so a Short is not over its limit by default. */
@@ -29,6 +29,7 @@ interface EditorContextValue {
   redo: () => void;
   mediaUrl: (mediaId: Id) => string | null;
   addFiles: (files: File[]) => Promise<void>;
+  setMusicFile: (file: File) => Promise<void>;
   importing: boolean;
   notify: Notify;
 }
@@ -101,9 +102,24 @@ export function EditorProvider({ formatId, notify, children }: { formatId: Aspec
     if (problems.length) notify(problems.join(' '), 'error');
   }, [format, notify]);
 
+  const setMusicFile = useCallback(async (file: File) => {
+    if (!isAudioFile(file)) { notify('Choose a music file such as MP3, M4A or WAV.', 'error'); return; }
+    const url = URL.createObjectURL(file);
+    try {
+      const { duration } = await probeAudio(url, file.name);
+      const id = makeId();
+      files.current.set(id, { file, url });
+      dispatch({ type: 'apply', op: (project) => setMusic(project, { id, kind: 'audio', name: file.name, size: file.size, lastModified: file.lastModified, duration }), label: 'Add music' });
+      notify(`${file.name} will play under your video.`, 'success');
+    } catch (error) {
+      URL.revokeObjectURL(url);
+      notify((error as Error).message, 'error');
+    }
+  }, [notify]);
+
   const value = useMemo<EditorContextValue>(() => ({
-    project: history.present, format, history, apply, seal, undo, redo, mediaUrl, addFiles, importing, notify,
-  }), [history, format, apply, seal, undo, redo, mediaUrl, addFiles, importing, notify]);
+    project: history.present, format, history, apply, seal, undo, redo, mediaUrl, addFiles, setMusicFile, importing, notify,
+  }), [history, format, apply, seal, undo, redo, mediaUrl, addFiles, setMusicFile, importing, notify]);
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;
 }
