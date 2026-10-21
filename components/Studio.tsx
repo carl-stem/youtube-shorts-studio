@@ -160,6 +160,7 @@ export default function Studio() {
     createDefaultCoverImage().then((img) => {
       coverRef.current = img;
       updateBlurredBackground(bg, img);
+      requestIdleFrame();
     });
 
     // Feature-detect export capabilities
@@ -172,53 +173,79 @@ export default function Studio() {
   }, []);
 
   // ── animation loop ──
-  const loop = useCallback(() => {
+  // Draws one frame from refs. The time readout only re-renders React when its text changes.
+  const lastTimeStrRef = useRef('');
+  const drawFrame = useCallback(() => {
     const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (ctx && !isRenderingRef.current) {
-        let elapsed = 0;
-        let dur = metaRef.current.clipDuration;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx || isRenderingRef.current) return;
+    let elapsed = 0;
+    let dur = metaRef.current.clipDuration;
 
-        if (isPlayingRef.current && audioCtxRef.current) {
-          elapsed = audioCtxRef.current.currentTime - previewStartRef.current;
-          if (elapsed >= previewDurRef.current) stopPreviewInternal();
-          dur = previewDurRef.current;
-        }
-
-        const { spectrum, bass } = computeSpectrumFromAnalyser(analyserRef.current, smoothedSpecRef.current);
-        const ts = renderShortsFrame(ctx, elapsed, dur, spectrum, bass, {
-          blurredBgCanvas: blurredBgRef.current,
-          coverImage: coverRef.current,
-          vizConfig: vizRef.current,
-          srtCues: srtCuesRef.current,
-          segmentOffset: segOffsetRef.current,
-          titleText: metaRef.current.title,
-          artistText: metaRef.current.artist,
-        });
-        setPreviewTimeStr(ts);
-      }
+    if (isPlayingRef.current && audioCtxRef.current) {
+      elapsed = audioCtxRef.current.currentTime - previewStartRef.current;
+      if (elapsed >= previewDurRef.current) stopPreviewInternal();
+      dur = previewDurRef.current;
     }
-    animFrameRef.current = requestAnimationFrame(loop);
+
+    const { spectrum, bass } = computeSpectrumFromAnalyser(analyserRef.current, smoothedSpecRef.current);
+    const ts = renderShortsFrame(ctx, elapsed, dur, spectrum, bass, {
+      blurredBgCanvas: blurredBgRef.current,
+      coverImage: coverRef.current,
+      vizConfig: vizRef.current,
+      srtCues: srtCuesRef.current,
+      segmentOffset: segOffsetRef.current,
+      titleText: metaRef.current.title,
+      artistText: metaRef.current.artist,
+    });
+    if (ts !== lastTimeStrRef.current) {
+      lastTimeStrRef.current = ts;
+      setPreviewTimeStr(ts);
+    }
   }, []); // empty deps – reads only refs
 
+  // Continuous loop only while previewing; it stops itself once playback ends.
+  const loop = useCallback(() => {
+    drawFrame();
+    animFrameRef.current = isPlayingRef.current ? requestAnimationFrame(loop) : 0;
+  }, [drawFrame]);
+
+  // Single frame for the paused/stopped preview. The idle spectrum is a smoothed wave, so it is
+  // settled first; otherwise a frame drawn right after playback would freeze bars mid-decay.
+  const requestIdleFrame = useCallback(() => {
+    if (isPlayingRef.current) return;
+    cancelAnimationFrame(animFrameRef.current);
+    animFrameRef.current = requestAnimationFrame(() => {
+      animFrameRef.current = 0;
+      if (isPlayingRef.current) return;
+      for (let i = 0; i < 20; i++) computeSpectrumFromAnalyser(null, smoothedSpecRef.current);
+      drawFrame();
+    });
+  }, [drawFrame]);
+
   useEffect(() => {
-    animFrameRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animFrameRef.current);
-  }, [loop]);
+    if (isPreviewPlaying) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = requestAnimationFrame(loop);
+    } else if (!isRendering) {
+      requestIdleFrame();
+    }
+  }, [isPreviewPlaying, isRendering, vizConfig, trackMeta, imageFile, srtFile, audioFile, audioDuration, loop, requestIdleFrame]);
+
+  useEffect(() => () => cancelAnimationFrame(animFrameRef.current), []);
 
   // ── pause animation loop when tab is hidden to save battery ──
   useEffect(() => {
     const onVisibility = () => {
-      if (document.hidden) {
-        cancelAnimationFrame(animFrameRef.current);
-      } else {
-        animFrameRef.current = requestAnimationFrame(loop);
-      }
+      cancelAnimationFrame(animFrameRef.current);
+      if (document.hidden) return;
+      if (isPlayingRef.current) animFrameRef.current = requestAnimationFrame(loop);
+      else requestIdleFrame();
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [loop]);
+  }, [loop, requestIdleFrame]);
 
   // ── preview ──
   const stopPreviewInternal = useCallback(() => {
