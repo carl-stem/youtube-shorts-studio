@@ -221,6 +221,8 @@ Pure modules (`lib/editor`, `compose`, `layout`, `audioPlan`) have no DOM and ar
 | M7 | Publishing (U-1..U-4) for both formats; TikTok inbox fix (U-5) | 500 MB upload with progress and resume; scheduled private upload sets publishAt; thumbnail and chapters land |
 | M8 | Optional: proxies, AI chapters, best-moment suggestion, audio mode on lib/render, paid tier | — |
 
+**M1 status (2026-10-21): done.** The editor ships as "Editor (beta)" next to Audio and Video. Verified in headless Chromium with three test clips (add, cut, reorder, undo/redo, trim, export): a 10.0 s story exported as a 1080×1920 file of 9.985 s, with clips in the edited order. Step 3 already offers framing presets (center/left/right, fit with blurred edges), looks and per-clip mute. Deferred: `compose.ts` (frame description) arrives with text and captions in M2; `VideoStudio` keeps its own drawing and exporter until it is deleted in M3; the audio track can end up to ~0.1 s shorter than the video because recording pauses at each cut.
+
 ## C. Remaining risks
 
 - YouTube upload URL may reject browser-origin PUTs (U-1a spike first; relay fallback).

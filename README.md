@@ -13,6 +13,7 @@
 | 🎵 **Audio engine** | Web Audio API — decodes WAV/MP3/OGG, fade-in/out, live FFT spectrum |
 | 🎨 **Live canvas** | 1080×1920 @ 60 fps — see every change instantly |
 | ✂️ **Editable segments** | Add, delete, and adjust start/duration per clip — not just auto-sliced |
+| 🎞️ **Editor (beta)** | Join several videos into one Short: trim, cut, reorder, framing presets, looks, undo/redo, gapless preview |
 | 🌈 **5 color themes** | Indigo→Pink, Fire, Ocean, Neon, Gold |
 | 📊 **3 spectrum styles** | Bars, Mirror Bars, Wave Line |
 | 🖼️ **3 backgrounds** | Blurred Art, Dark Gradient, Pure Dark |
@@ -65,12 +66,13 @@ Or click the **Deploy** button above to import directly into Vercel.
 ├── app/                   # Next.js App Router
 │   ├── api/               # Optional server routes (auth, upload, analytics, spotify, whisper)
 │   ├── layout.tsx
-│   ├── page.tsx           # Audio / Video workflow switch
+│   ├── page.tsx           # Audio / Video / Editor workflow switch
 │   ├── manifest.ts
 │   └── globals.css
 ├── components/
 │   ├── Studio.tsx         # Audio Short workflow — state & audio engine
 │   ├── VideoStudio.tsx    # Video Short workflow — clips, trim, export
+│   ├── editor/            # New editor (beta): steps, storyboard, preview
 │   ├── SegmentEditor.tsx  # Editable clip segments
 │   ├── VisualStylePanel.tsx
 │   ├── MediaUploader.tsx  # Audio + Image + SRT dropzones
@@ -79,6 +81,8 @@ Or click the **Deploy** button above to import directly into Vercel.
 │   ├── Header.tsx
 │   └── ConsoleLog.tsx
 ├── lib/
+│   ├── editor/            # Editor project model, edit operations, timeline, undo history
+│   ├── render/            # Formats/framing, frame drawing, sequence player, recorder export
 │   ├── canvasRenderer.ts  # All pure canvas drawing functions
 │   ├── srtParser.ts
 │   └── mediaCodec.ts
