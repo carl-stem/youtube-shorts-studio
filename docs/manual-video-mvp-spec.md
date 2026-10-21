@@ -1,5 +1,7 @@
 # Shorts Studio — Manual Video MVP Product Spec
 
+> **Superseded for the new editor:** see [`docs/editor-plan.md`](./editor-plan.md) (approved 2026-10-21).
+
 **Status:** Proposed · integrated build verification in progress
 **Last updated:** 2026-10-19
 **Audience:** Product, design, and engineering
