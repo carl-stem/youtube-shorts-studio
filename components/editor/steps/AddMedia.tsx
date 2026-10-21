@@ -4,6 +4,8 @@ import { useRef } from 'react';
 import { appendClip, removeMedia } from '../../../lib/editor/ops';
 import { formatTimecode } from '../../../lib/editor/timeline';
 import { MAX_MEDIA, defaultClipCap, useEditor } from '../EditorProvider';
+import { videoMime } from '../../../lib/videoAssets';
+import ZipImport from '../ZipImport';
 import { StepCard, primaryButton } from './StepCard';
 
 export default function AddMedia({ onNext }: { onNext: () => void }) {
@@ -24,6 +26,7 @@ export default function AddMedia({ onNext }: { onNext: () => void }) {
           className="hidden"
           onChange={(event) => { const picked = Array.from(event.target.files ?? []); event.target.value = ''; void addFiles(picked); }}
         />
+        <ZipImport />
       </div>
       <p className="mt-2 text-xs text-[var(--text-3)]">MP4 (H.264) works in every browser. Files stay on this device. Up to {MAX_MEDIA} videos.</p>
 
@@ -36,7 +39,7 @@ export default function AddMedia({ onNext }: { onNext: () => void }) {
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400" aria-hidden="true">▶</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{item.name}</span>
-                  <span className="block text-xs text-[var(--text-3)]">{formatTimecode(item.duration)} · {item.width} × {item.height} · in your story {uses}×</span>
+                  <span className="block text-xs text-[var(--text-3)]">{formatTimecode(item.duration)} · {item.width} × {item.height} · {videoMime(item.name)} · in your story {uses}×</span>
                 </span>
                 <button type="button" className="rounded-lg px-3 py-2 text-xs text-indigo-400 hover:bg-indigo-500/10" onClick={() => apply((p) => appendClip(p, item.id, clipCap), 'Use video again')}>Use again</button>
                 <button type="button" className="rounded-lg px-3 py-2 text-xs text-rose-400 hover:bg-rose-500/10" onClick={() => apply((p) => removeMedia(p, item.id), 'Remove video')}>Remove</button>
