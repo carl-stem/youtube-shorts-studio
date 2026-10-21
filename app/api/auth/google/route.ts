@@ -1,12 +1,15 @@
 import { randomBytes } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { kvSetWithExpiry } from '../../../../lib/kv';
+import { tokenEncryptionReady } from '../../../../lib/tokenManager';
 
 const OAUTH_STATE_COOKIE = 'oauth_google_state';
 
 export async function GET(req: NextRequest) {
   const id = process.env.GOOGLE_CLIENT_ID;
   if (!id) return NextResponse.json({ error: 'GOOGLE_CLIENT_ID not configured' }, { status: 503 });
+
+  if (!tokenEncryptionReady()) return NextResponse.json({ error: 'Token encryption is not configured', code: 'token_encryption_not_configured' }, { status: 503 });
 
   const base = process.env.NEXTAUTH_URL;
   if (!base || new URL(base).origin !== base.replace(/\/$/, '')) return NextResponse.json({ error: 'NEXTAUTH_URL must be configured as the canonical application origin' }, { status: 503 });

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { clearGoogleTokens, clearTikTokTokens, getGoogleTokens, getTikTokTokens, setGoogleTokens, setTikTokTokens } from '../../../../../lib/tokenManager';
+import { clearGoogleTokens, clearTikTokTokens, getGoogleTokens, getTikTokTokens, setGoogleTokens, setTikTokTokens, tokenEncryptionReady } from '../../../../../lib/tokenManager';
 import { kvDel, kvGetDel, kvGet, kvSetWithExpiry } from '../../../../../lib/kv';
 
 export async function GET(req: NextRequest) {
@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
   if (!stateRecord || !Number.isFinite(stateRecord.createdAt) || Date.now() - stateRecord.createdAt > 10 * 60 * 1000 || stateRecord.createdAt > Date.now() + 60_000) return reject('invalid_oauth_state');
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) return reject('google_oauth_not_configured');
 
+  if (!tokenEncryptionReady()) return reject('token_encryption_not_configured');
   try {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',

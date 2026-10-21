@@ -42,6 +42,7 @@ For local dev, copy `.env.example` to `.env.local` (never commit `.env.local`).
 | `NEXTAUTH_URL` | All OAuth callbacks | Your Vercel domain: `https://youtube-shorts-studio.vercel.app` |
 | `KV_REST_API_URL` | Token storage (YouTube/TikTok auth); rate limits for Spotify/Whisper in production | Vercel Dashboard → Storage → KV |
 | `KV_REST_API_TOKEN` | Token storage | Vercel Dashboard → Storage → KV |
+| `TOKEN_ENC_KEY` | Encrypting OAuth tokens at rest (required in production for YouTube/TikTok connect) | `openssl rand -base64 32` |
 | `GOOGLE_CLIENT_ID` | YouTube OAuth | [console.cloud.google.com](https://console.cloud.google.com) |
 | `GOOGLE_CLIENT_SECRET` | YouTube OAuth | [console.cloud.google.com](https://console.cloud.google.com) |
 | `TIKTOK_CLIENT_KEY` | TikTok OAuth | [developers.tiktok.com](https://developers.tiktok.com) |
@@ -69,7 +70,7 @@ OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## 3. Vercel KV Setup
 
-Vercel KV is a serverless Redis store used to persist OAuth session state and tokens (stored unencrypted today; encryption at rest is planned, see [docs/editor-plan.md](docs/editor-plan.md)). Free tier: **30,000 requests/day**.
+Vercel KV is a serverless Redis store used to persist OAuth session state and tokens. Tokens are encrypted at rest with AES-256-GCM using `TOKEN_ENC_KEY` (generate with `openssl rand -base64 32`). In production, YouTube/TikTok connect is refused with `token_encryption_not_configured` if the key is missing; in development tokens are stored unencrypted with a console warning. Tokens saved before encryption was enabled are re-saved encrypted the next time they are read. Free tier: **30,000 requests/day**.
 
 **Steps:**
 1. Go to **[vercel.com/dashboard](https://vercel.com/dashboard)** → your project
@@ -323,7 +324,7 @@ Shorts Studio (Next.js 14, App Router)
     ├── /api/analytics/*   — YouTube Analytics API
     ├── /api/spotify/*     — Spotify search proxy
     ├── /api/whisper       — OpenAI Whisper transcription
-    └── Vercel KV          — OAuth token storage (encryption planned)
+    └── Vercel KV          — OAuth token storage (AES-256-GCM encrypted)
 ```
 
 ---
