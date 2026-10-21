@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getValidTikTokToken } from '../../../../../lib/tokenManager';
 import { kvGet } from '../../../../../lib/kv';
+import { isValidTikTokPublishId, tiktokPublishKey } from '../../../../../lib/publish/tiktokChunks';
 
 export async function GET(req: NextRequest) {
   const sessionId = req.cookies.get('oauth_session')?.value;
   const publishId = req.nextUrl.searchParams.get('publishId');
-  if (!sessionId || !publishId || !/^[a-zA-Z0-9_-]{8,256}$/.test(publishId)) {
+  if (!sessionId || !isValidTikTokPublishId(publishId)) {
     return NextResponse.json({ error: 'Invalid or missing publish request' }, { status: 400 });
   }
-  const owned = await kvGet<{ publishId: string; mode: 'direct' | 'inbox' }>(`tiktok:publish:${sessionId}:${publishId}`);
+  const owned = await kvGet<{ publishId: string; mode: 'direct' | 'inbox' }>(tiktokPublishKey(sessionId, publishId));
   if (!owned || owned.publishId !== publishId) return NextResponse.json({ error: 'Publish request not found' }, { status: 404 });
   const token = await getValidTikTokToken(sessionId);
   if (!token) return NextResponse.json({ error: 'TikTok not connected' }, { status: 401 });
