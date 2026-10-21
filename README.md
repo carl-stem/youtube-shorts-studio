@@ -19,6 +19,7 @@
 | 💬 **SRT / CC** | Upload a subtitle file — captions render on-canvas in every clip |
 | 📢 **CTA overlay** | Watermark / call-to-action text, top or above-spectrum position |
 | 🎬 **Export quality** | 1.5 / 3 / 6 / 8 Mbps — MP4 (H.264) or WebM (VP9) depending on browser |
+| 📤 **Publish** | YouTube (resumable upload, schedule, category, thumbnail) and TikTok inbox drafts from any finished export |
 | 🚀 **Vercel-ready** | Standard Next.js server build with optional API routes — editing and export run in the browser |
 
 ---
@@ -42,7 +43,11 @@ The editor and export run entirely in the browser. Optional server routes under 
 - `api/spotify/search` — Spotify track search for title/artist/cover fill
 - `api/whisper` — OpenAI Whisper auto-captions
 - `api/auth/*` — Google (YouTube) and TikTok OAuth connect/status/disconnect (tokens stored in Vercel KV)
-- `api/upload/*`, `api/analytics/youtube` — YouTube/TikTok upload and YouTube analytics (UI planned, see [docs/editor-plan.md](docs/editor-plan.md))
+- `api/upload/youtube/{session,chunk,status,thumbnail}` — YouTube publishing: the server only creates the resumable upload session; the browser sends the video straight to Google in 8 MiB chunks (falling back to a session-scoped 4 MiB relay if the browser blocks it), with pause/resume, category, made-for-kids, scheduling and custom thumbnails
+- `api/upload/tiktok/{init,chunk,status}` — TikTok inbox upload: the browser sends chunks straight to TikTok (videos over 4 MB need the direct path; see [SETUP.md](SETUP.md#publishing-how-uploads-travel))
+- `api/analytics/youtube` — recent Shorts and totals, opened from the 📊 button in the header once YouTube is connected
+
+Connect accounts with the **Accounts** button in the header; finished exports in both workflows get a **Publish** button.
 
 ## Deploy to Vercel
 

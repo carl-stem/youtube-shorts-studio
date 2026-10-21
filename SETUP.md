@@ -1,6 +1,6 @@
 # Shorts Studio — Setup Guide
 
-> **1080×1920 vertical video generator** with Spotify metadata fill, Whisper auto-captions, and a live audio spectrum visualizer. One-click YouTube & TikTok publishing is planned (server routes exist; UI not yet reachable — see [docs/editor-plan.md](docs/editor-plan.md)).
+> **1080×1920 vertical video generator** with Spotify metadata fill, Whisper auto-captions, and a live audio spectrum visualizer. Publish finished exports to YouTube (resumable upload with schedule, category and thumbnail) or to your TikTok inbox, and see recent YouTube Shorts stats.
 
 ---
 
@@ -172,7 +172,7 @@ TIKTOK_CLIENT_KEY    = awxxxxxxxxxxxxxxxx
 TIKTOK_CLIENT_SECRET = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-> **Privacy levels:** The publish dialog is planned and not yet reachable from the app (see [docs/editor-plan.md](docs/editor-plan.md)).
+> **Inbox only:** Shorts Studio sends videos to the creator's TikTok inbox as drafts (`video.upload` scope). Caption and privacy are chosen in the TikTok app when posting. Direct Post is not used.
 
 ---
 
@@ -295,15 +295,30 @@ Or trigger a redeploy from the Vercel Dashboard.
 | Spotify metadata fill | ❌ | ✅ | ✅ | ✅ | ✅ |
 | Whisper auto-captions | ❌ | ❌ | ✅ | ✅ | ✅ |
 | YouTube OAuth connect | ❌ | ❌ | ❌ | ✅ | ✅ |
-| One-click YouTube upload | ❌ | ❌ | ❌ | planned² | planned² |
-| Scheduled YouTube publish | ❌ | ❌ | ❌ | planned² | planned² |
-| YouTube analytics dashboard | ❌ | ❌ | ❌ | planned² | planned² |
+| YouTube upload (resumable, pause/resume) | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Scheduled YouTube publish | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Custom YouTube thumbnail | ❌ | ❌ | ❌ | ✅² | ✅² |
+| YouTube analytics dashboard | ❌ | ❌ | ❌ | ✅ | ✅ |
 | TikTok OAuth connect | ❌ | ❌ | ❌ | ❌ | ✅ |
-| One-click TikTok upload | ❌ | ❌ | ❌ | ❌ | planned² |
+| TikTok inbox upload | ❌ | ❌ | ❌ | ❌ | ✅³ |
 
 ¹ Not wired up yet: all exports currently use MediaRecorder (real-time). Planned, see [docs/editor-plan.md](docs/editor-plan.md).
 
-² API routes exist but the publish/analytics UI is not yet reachable from the app. Planned, see [docs/editor-plan.md](docs/editor-plan.md).
+² YouTube only allows custom thumbnails on verified channels ([youtube.com/verify](https://www.youtube.com/verify)); otherwise the upload succeeds and the app says the thumbnail was not set.
+
+³ Videos over 4 MB require the browser to send chunks directly to TikTok; see [Publishing: how uploads travel](#publishing-how-uploads-travel).
+
+---
+
+## Publishing: how uploads travel
+
+Vercel functions accept request bodies of only ~4.5 MB, so video files are never sent to the app's server in one piece.
+
+**YouTube.** `POST /api/upload/youtube/session` validates the metadata and creates a resumable upload session with Google (sending the app's `Origin`). The browser then `PUT`s 8 MiB chunks straight to the Google upload URL. If the browser blocks the first direct chunk (CORS), it switches to `PUT /api/upload/youtube/chunk`, which forwards 4 MiB chunks to that one session's upload URL and nothing else. After any network error the browser asks Google how many bytes it has and continues from there. An unfinished upload is remembered in the browser for up to a week: publish the same export again to resume. The progress bar says **"Sending straight to YouTube"** or **"Sending through Shorts Studio"** so you can tell which path was used.
+
+**TikTok.** `POST /api/upload/tiktok/init` starts an inbox `FILE_UPLOAD` and returns TikTok's upload URL (valid for one hour). TikTok requires chunks of at least 5 MB, more than a Vercel function can receive, so the browser `PUT`s the chunks straight to `*.tiktokapis.com`. Only a whole video of 4 MB or less can fall back to `PUT /api/upload/tiktok/chunk` if the browser blocks the direct path; larger videos then show an error asking you to upload in the TikTok app.
+
+Required production env vars are unchanged (KV, `TOKEN_ENC_KEY`, Google/TikTok OAuth). Upload routes are rate limited per session and, like Spotify/Whisper, return `503 rate_limit_unavailable` in production without KV.
 
 ---
 
@@ -320,7 +335,7 @@ Shorts Studio (Next.js 14, App Router)
 │
 └── Server (Vercel Edge/Node)
     ├── /api/auth/*        — OAuth initiation + callbacks
-    ├── /api/upload/*      — YouTube + TikTok upload proxies
+    ├── /api/upload/*      — Upload sessions (metadata only), small chunk relays, status, thumbnails
     ├── /api/analytics/*   — YouTube Analytics API
     ├── /api/spotify/*     — Spotify search proxy
     ├── /api/whisper       — OpenAI Whisper transcription
