@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Studio from '../components/Studio';
 import VideoStudio from '../components/VideoStudio';
 import Header from '../components/Header';
@@ -11,12 +12,17 @@ import type { AccountStatus, ProjectActions } from '../types';
 
 type CreationMode = 'video' | 'audio';
 
+// Loaded only after the first click on the analytics button.
+const AnalyticsDashboard = dynamic(() => import('../components/AnalyticsDashboard'), { ssr: false });
+
 export default function Home() {
   const [mode, setMode] = useState<CreationMode>('audio');
   const [requestedMode, setRequestedMode] = useState<CreationMode | null>(null);
   const [projectActions, setProjectActions] = useState<ProjectActions | null>(null);
   const [accounts, setAccounts] = useState<AccountStatus | null>(null);
   const [accountsLoading, setAccountsLoading] = useState(true);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [analyticsRequested, setAnalyticsRequested] = useState(false);
   const { toasts, toast, dismiss } = useToast();
 
   // Fetched once here and shared with the header and both publish flows.
@@ -70,6 +76,7 @@ export default function Home() {
         accounts={accounts}
         accountsLoading={accountsLoading}
         onAccountsChanged={() => void refreshAccounts()}
+        onOpenAnalytics={accounts?.google ? () => { setAnalyticsRequested(true); setAnalyticsOpen(true); } : undefined}
         modeSwitch={
           <div className="flex items-center justify-between gap-3 rounded-full border border-[var(--border)] bg-[var(--bg-surface2)] px-3 py-2 sm:justify-start" aria-label="Creation workflow">
             <span className={`text-xs font-semibold ${mode === 'audio' ? 'text-[var(--text-1)]' : 'text-[var(--text-3)]'}`}>Audio</span>
@@ -118,6 +125,7 @@ export default function Home() {
           </section>
         </div>
       )}
+      {analyticsRequested && <AnalyticsDashboard open={analyticsOpen} onClose={() => setAnalyticsOpen(false)} />}
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
