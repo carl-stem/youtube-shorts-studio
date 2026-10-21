@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AccountStatus, DownloadItem } from '../../types';
-import type { Id } from '../../lib/editor/model';
+import { createProject, type Id, type Project } from '../../lib/editor/model';
+import { loadMediaFiles } from '../../lib/editor/persist';
 import { duration } from '../../lib/editor/timeline';
 import { SequencePlayer } from '../../lib/render/sequencePlayer';
 import type { AspectId } from '../../lib/render/layout';
 import { EditorProvider, useEditor, type Notify } from './EditorProvider';
 import EditorSteps from './EditorSteps';
 import PreviewPlayer from './PreviewPlayer';
+import ProjectBar from './ProjectBar';
+import RelinkBanner from './RelinkBanner';
 import StartScreen from './StartScreen';
 import AddMedia from './steps/AddMedia';
 import Arrange from './steps/Arrange';
@@ -21,12 +24,25 @@ interface Props {
   onOpenVisualizer: () => void;
 }
 
+interface Session {
+  project: Project;
+  files: Map<Id, File>;
+}
+
 export default function Editor({ accounts, notify, onOpenVisualizer }: Props) {
-  const [formatId, setFormatId] = useState<AspectId | null>(null);
-  if (!formatId) return <StartScreen onPick={setFormatId} onOpenVisualizer={onOpenVisualizer} />;
+  const [session, setSession] = useState<Session | null>(null);
+  const start = (format: AspectId) => setSession({ project: createProject(format), files: new Map() });
+  const open = async (project: Project) => {
+    try {
+      setSession({ project, files: await loadMediaFiles(project) });
+    } catch {
+      setSession({ project, files: new Map() });
+    }
+  };
+  if (!session) return <StartScreen onPick={start} onOpen={open} onOpenVisualizer={onOpenVisualizer} notify={notify} />;
   return (
-    <EditorProvider formatId={formatId} notify={notify}>
-      <Workspace accounts={accounts} />
+    <EditorProvider key={session.project.id} initial={session.project} initialFiles={session.files} notify={notify}>
+      <Workspace accounts={accounts} onClose={() => setSession(null)} />
     </EditorProvider>
   );
 }
@@ -34,9 +50,10 @@ export default function Editor({ accounts, notify, onOpenVisualizer }: Props) {
 const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement && (target.isContentEditable || target.tagName === 'TEXTAREA' || (target.tagName === 'INPUT' && (target as HTMLInputElement).type !== 'range' && (target as HTMLInputElement).type !== 'checkbox'));
 
-function Workspace({ accounts }: { accounts: AccountStatus | null }) {
-  const { project, format, history, undo, redo, mediaUrl, notify } = useEditor();
-  const [step, setStep] = useState(1);
+function Workspace({ accounts, onClose }: { accounts: AccountStatus | null; onClose: () => void }) {
+  const { project, format, undo, redo, mediaUrl, notify } = useEditor();
+  // A reopened project starts where the clips are.
+  const [step, setStep] = useState(() => (project.story.length ? 2 : 1));
   const [selectedId, setSelectedId] = useState<Id | null>(null);
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
   const [player, setPlayer] = useState<SequencePlayer | null>(null);
@@ -97,24 +114,15 @@ function Workspace({ accounts }: { accounts: AccountStatus | null }) {
   const seek = useCallback((t: number) => { requestAnimationFrame(() => void player?.seek(t)); }, [player]);
   const toggle = () => { if (!player) return; if (player.isPlaying) player.pause(); else void player.play(); };
 
-  const undoDisabled = exporting || !history.past.length;
-  const redoDisabled = exporting || !history.future.length;
-  const stepButton = 'rounded-lg border border-[var(--border)] bg-[var(--bg-surface2)] px-3 py-1.5 text-xs font-semibold hover:border-indigo-500/60 disabled:cursor-not-allowed disabled:opacity-40';
-
   return (
     <div className="min-h-[calc(100vh-5rem)] w-full">
       <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-6 lg:px-8">
         <div className="rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-600/10 via-[var(--bg-surface)] to-fuchsia-500/10 p-4 shadow-lg shadow-indigo-900/5 sm:px-6">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-500">New editor · {format.label} · beta</p>
-            <div className="flex gap-2">
-              <button type="button" className={stepButton} onClick={undo} disabled={undoDisabled} title={history.past.length ? `Undo: ${history.past[history.past.length - 1].label}` : 'Nothing to undo'}>↶ Undo</button>
-              <button type="button" className={stepButton} onClick={redo} disabled={redoDisabled} title={history.future.length ? `Redo: ${history.future[0].label}` : 'Nothing to redo'}>↷ Redo</button>
-            </div>
-          </div>
+          <ProjectBar locked={exporting} onClose={onClose} />
           {/* Every step opens once the story has a clip; nothing moves while exporting. */}
           <EditorSteps current={step} furthest={exporting ? 0 : project.story.length ? 4 : 1} onChange={goTo} />
         </div>
+        <RelinkBanner />
       </div>
       <div className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-6 px-4 py-5 sm:px-6 lg:grid-cols-12 lg:px-8">
         <section className="space-y-5 lg:col-span-7">
