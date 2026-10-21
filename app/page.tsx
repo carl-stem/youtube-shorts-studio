@@ -1,14 +1,43 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Studio from '../components/Studio';
 import VideoStudio from '../components/VideoStudio';
+import Header from '../components/Header';
+import ToastContainer from '../components/Toast';
+import { useToast } from '../hooks/useToast';
+import { authErrorMessage, readAuthRedirect } from '../lib/authErrors';
+import type { AccountStatus, ProjectActions } from '../types';
 
 type CreationMode = 'video' | 'audio';
 
 export default function Home() {
   const [mode, setMode] = useState<CreationMode>('audio');
   const [requestedMode, setRequestedMode] = useState<CreationMode | null>(null);
+  const [projectActions, setProjectActions] = useState<ProjectActions | null>(null);
+  const [accounts, setAccounts] = useState<AccountStatus | null>(null);
+  const [accountsLoading, setAccountsLoading] = useState(true);
+  const { toasts, toast, dismiss } = useToast();
+
+  // Fetched once here and shared with the header and both publish flows.
+  const refreshAccounts = useCallback(async () => {
+    try {
+      const response = await fetch('/api/auth/status', { cache: 'no-store' });
+      setAccounts(response.ok ? await response.json() as AccountStatus : null);
+    } catch { setAccounts(null); }
+    finally { setAccountsLoading(false); }
+  }, []);
+  useEffect(() => { void refreshAccounts(); }, [refreshAccounts]);
+
+  // OAuth callbacks redirect to /?auth_error=<code> or /?connected=<provider>.
+  useEffect(() => {
+    const { errorCode, connected, cleanedSearch } = readAuthRedirect(window.location.search);
+    if (!errorCode && !connected) return;
+    const message = authErrorMessage(errorCode);
+    if (message) toast(message, 'error', 8000);
+    else if (connected) toast(`${connected === 'google' ? 'YouTube' : 'TikTok'} account connected.`, 'success');
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${cleanedSearch}${window.location.hash}`);
+  }, [toast]);
 
   const workflowGuide = mode === 'video'
     ? 'Add videos → Choose a moment → Make it yours → Review & export'
@@ -35,12 +64,13 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-base)] text-[var(--text-1)]">
-      <header className="border-b border-[var(--border)] bg-[var(--bg-header)] px-4 py-4 sm:px-6">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Shorts Studio</h1>
-            <p className="mt-1 text-xs text-[var(--text-3)]">{workflowGuide}</p>
-          </div>
+      <Header
+        workflowGuide={workflowGuide}
+        projectActions={mode === 'audio' ? projectActions : null}
+        accounts={accounts}
+        accountsLoading={accountsLoading}
+        onAccountsChanged={() => void refreshAccounts()}
+        modeSwitch={
           <div className="flex items-center justify-between gap-3 rounded-full border border-[var(--border)] bg-[var(--bg-surface2)] px-3 py-2 sm:justify-start" aria-label="Creation workflow">
             <span className={`text-xs font-semibold ${mode === 'audio' ? 'text-[var(--text-1)]' : 'text-[var(--text-3)]'}`}>Audio</span>
             <button
@@ -55,9 +85,11 @@ export default function Home() {
             </button>
             <span className={`text-xs font-semibold ${mode === 'video' ? 'text-[var(--text-1)]' : 'text-[var(--text-3)]'}`}>Video</span>
           </div>
-        </div>
-      </header>
-      {mode === 'video' ? <VideoStudio /> : <Studio />}
+        }
+      />
+      {mode === 'video'
+        ? <VideoStudio accounts={accounts} />
+        : <Studio accounts={accounts} onProjectActions={setProjectActions} />}
 
       {requestedMode && (
         <div
@@ -86,6 +118,7 @@ export default function Home() {
           </section>
         </div>
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

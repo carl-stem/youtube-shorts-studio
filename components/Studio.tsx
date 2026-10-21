@@ -15,9 +15,8 @@ import { useToast } from '../hooks/useToast';
 import { buildAlbumQueue } from '../lib/audioAlbum';
 import { listZipMedia, extractZipMedia } from '../lib/videoAssets';
 import type { ZipMediaCandidate } from '../lib/videoAssets';
-import type { AlbumTrackFile } from '../types';
+import type { AccountStatus, AlbumTrackFile, ProjectActions } from '../types';
 
-import Header from './Header';
 import MediaUploader from './MediaUploader';
 import TrackSettings from './TrackSettings';
 import VisualStylePanel from './VisualStylePanel';
@@ -51,7 +50,13 @@ function timestamp() {
 
 // ─── component ───────────────────────────────────────────────────────────────
 
-export default function Studio() {
+interface StudioProps {
+  accounts: AccountStatus | null;
+  /** Registers Open/Save for the shared header; called with null on unmount. */
+  onProjectActions?: (actions: ProjectActions | null) => void;
+}
+
+export default function Studio({ accounts, onProjectActions }: StudioProps) {
   // ── asset state (triggers UI updates) ──
   const [audioFile, setAudioFile] = useState<{ name: string; meta: string }>({
     name: 'Choose .WAV or Audio File', meta: 'Click or drag & drop audio',
@@ -475,6 +480,21 @@ export default function Studio() {
     projectFileInputRef.current?.click();
   }, []);
 
+  // The header lives in app/page.tsx; hand it stable callbacks that always call the latest handlers.
+  const saveProjectRef = useRef(handleSaveProject);
+  const loadProjectRef = useRef(handleLoadProject);
+  useEffect(() => { saveProjectRef.current = handleSaveProject; }, [handleSaveProject]);
+  useEffect(() => { loadProjectRef.current = handleLoadProject; }, [handleLoadProject]);
+  useEffect(() => {
+    if (!onProjectActions) return;
+    onProjectActions({
+      onSave: () => saveProjectRef.current(),
+      onLoad: () => loadProjectRef.current(),
+      codecLabel: `Export: .${detectedFormat.ext.toUpperCase()}`,
+    });
+    return () => onProjectActions(null);
+  }, [onProjectActions, detectedFormat]);
+
   const handleProjectFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -720,13 +740,6 @@ export default function Studio() {
         onChange={handleProjectFileSelected}
       />
 
-      <Header
-        showBrand={false}
-        codecLabel={`Export: .${detectedFormat.ext.toUpperCase()}`}
-        onSaveProject={handleSaveProject}
-        onLoadProject={handleLoadProject}
-      />
-
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
         <div className="lg:col-span-5 order-first lg:order-last flex flex-col items-center">
           <CanvasPreview
@@ -828,6 +841,7 @@ export default function Studio() {
                 downloads={downloads}
                 onRenderAll={() => renderBatch(segments)}
                 onStop={() => { stopFlagRef.current = true; }}
+                accounts={accounts}
               />
               <ConsoleLog logs={logs} onClear={() => setLogs([])} />
               <StepFooter onBack={() => setCurrentStep(3)} />

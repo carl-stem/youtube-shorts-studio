@@ -1,5 +1,5 @@
 'use client';
-import type { DownloadItem } from '../types';
+import type { AccountStatus, DownloadItem } from '../types';
 import SocialShare from './SocialShare';
 import PublishClip from './PublishClip';
 
@@ -10,10 +10,10 @@ interface Props {
   downloads: DownloadItem[];
   onRenderAll: () => void;
   onStop: () => void;
-  accounts?: { google: { channelName: string } | null; tiktok: { channelName: string } | null } | null;
+  accounts: AccountStatus | null;
 }
 
-export default function ExportPanel({ segmentCount, isRendering, progress, downloads, onRenderAll, onStop }: Props) {
+export default function ExportPanel({ segmentCount, isRendering, progress, downloads, onRenderAll, onStop, accounts }: Props) {
   return (
     <div className="space-y-4">
       <section className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
@@ -61,12 +61,16 @@ export default function ExportPanel({ segmentCount, isRendering, progress, downl
                   <span className="text-[var(--text-1)] font-medium truncate mr-3">
                     {d.filename} <span className="text-[var(--text-3)] mono">({(d.sizeBytes / 1024 / 1024).toFixed(2)} MB)</span>
                   </span>
-                  <a href={d.url} download={d.filename} className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition shrink-0">
-                    ↓
-                  </a>
+                  <span className="flex items-center gap-2 shrink-0">
+                    <PublishClip item={d} accounts={accounts}/>
+                    <a href={d.url} download={d.filename} className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition shrink-0" aria-label={`Download ${d.filename}`}>
+                      ↓
+                    </a>
+                  </span>
                 </div>
               ))}
             </div>
+            {!accounts?.google && !accounts?.tiktok && <p className="text-[11px] text-[var(--text-3)]">To publish, connect YouTube or TikTok with the Accounts button at the top of the page.</p>}
           </div>
         )}
       </section>

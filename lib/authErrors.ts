@@ -38,3 +38,21 @@ export function authErrorFromProviderParam(error: string | null): AuthErrorCode 
   if (!error) return 'missing_code';
   return error === 'access_denied' ? 'denied' : 'provider_error';
 }
+
+export type ConnectedProvider = 'google' | 'tiktok';
+
+/**
+ * Reads the `?auth_error=` / `?connected=` values the OAuth callbacks redirect with
+ * and returns the query string without them, so the page can show one toast and
+ * then clean the URL (a reload must not repeat the message).
+ */
+export function readAuthRedirect(search: string): { errorCode: string | null; connected: ConnectedProvider | null; cleanedSearch: string } {
+  const params = new URLSearchParams(search);
+  const errorCode = params.get('auth_error');
+  const rawConnected = params.get('connected');
+  const connected = rawConnected === 'google' || rawConnected === 'tiktok' ? rawConnected : null;
+  params.delete('auth_error');
+  params.delete('connected');
+  const rest = params.toString();
+  return { errorCode, connected, cleanedSearch: rest ? `?${rest}` : '' };
+}

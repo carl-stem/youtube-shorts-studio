@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, PointerEvent as ReactPointerEvent } from 'react';
-import type { DownloadItem, SRTCue, VideoFilter } from '../types';
+import type { AccountStatus, DownloadItem, SRTCue, VideoFilter } from '../types';
 import { extractZipMedia, listZipMedia, parseCaptionFile, VIDEO_ZIP_LIMITS, videoMime } from '../lib/videoAssets';
 import type { ZipMediaCandidate } from '../lib/videoAssets';
 import { getSupportedMimeType } from '../lib/mediaCodec';
+import PublishClip from './PublishClip';
 
 interface VideoAsset {
   id: string;
@@ -179,7 +180,7 @@ function drawVerticalFrame(
   }
 }
 
-export default function VideoStudio() {
+export default function VideoStudio({ accounts }: { accounts: AccountStatus | null }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [furthestStep, setFurthestStep] = useState(1);
   const [assets, setAssets] = useState<VideoAsset[]>([]);
@@ -812,7 +813,7 @@ export default function VideoStudio() {
                 {unsupportedExport && <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">Export needs a browser with canvas recording and a supported video codec. Try current Chrome or Edge on desktop.</p>}
                 {!audioCaptureSupported && <p className="mt-3 rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-200">This browser cannot capture source audio for export. Use current Chrome or Edge to export video with its original audio.</p>}
                 {exporting && <div className="mt-4"><div className="mb-1 flex justify-between text-xs text-[var(--text-2)]"><span>Rendering in real time</span><span>{progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-[var(--bg-surface2)]"><div className="h-full bg-gradient-to-r from-indigo-500 to-pink-500 transition-all" style={{ width: `${progress}%` }} /></div></div>}
-                {downloads.length > 0 && <div className="mt-4 space-y-2"><h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Your exports</h3>{downloads.map((download, index) => <div key={`${download.filename}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-[var(--bg-surface2)] px-3 py-2"><span className="truncate text-xs">{download.filename} · {(download.sizeBytes / 1024 / 1024).toFixed(2)} MB</span><button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500" onClick={() => downloadAgain(download)}>Download</button></div>)}</div>}
+                {downloads.length > 0 && <div className="mt-4 space-y-2"><h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Your exports</h3>{downloads.map((download, index) => <div key={`${download.filename}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-[var(--bg-surface2)] px-3 py-2"><span className="truncate text-xs">{download.filename} · {(download.sizeBytes / 1024 / 1024).toFixed(2)} MB</span><span className="flex shrink-0 items-center gap-2"><PublishClip item={download} accounts={accounts} /><button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500" onClick={() => downloadAgain(download)}>Download</button></span></div>)}{!accounts?.google && !accounts?.tiktok && <p className="text-[11px] text-[var(--text-3)]">To publish, connect YouTube or TikTok with the Accounts button at the top of the page.</p>}</div>}
                 <div className="mt-5 flex justify-start border-t border-emerald-500/10 pt-4"><button type="button" onClick={() => advanceStep(3)} className={buttonClass}>← Back to styling</button></div>
               </section>}
         </section>
@@ -839,7 +840,7 @@ export default function VideoStudio() {
               <p className="mt-3 text-xs text-[var(--text-3)]">Your vertical preview appears here.</p>
             </div>
           )}
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-4 text-xs text-[var(--text-2)]"><strong className="text-[var(--text-1)]">A few helpful notes</strong><ul className="mt-2 list-disc space-y-1 pl-4"><li>Preview supports formats your browser can play; MP4/H.264 is the recommended starting point.</li><li>Exports are rendered in real time and can be cancelled.</li><li>Files remain on this device. There is no video publishing in this first manual editor.</li></ul></div>
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-4 text-xs text-[var(--text-2)]"><strong className="text-[var(--text-1)]">A few helpful notes</strong><ul className="mt-2 list-disc space-y-1 pl-4"><li>Preview supports formats your browser can play; MP4/H.264 is the recommended starting point.</li><li>Exports are rendered in real time and can be cancelled.</li><li>Files stay on this device until you choose Publish on a finished export. Publishing sends only that export to the account you pick.</li></ul></div>
         </aside>
       </div>
       <video ref={videoRef} className="hidden" playsInline preload="metadata" onLoadedData={drawFrame} />

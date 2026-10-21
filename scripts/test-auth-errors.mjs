@@ -50,3 +50,12 @@ test('API routes do not echo raw upstream or exception text in JSON errors', asy
     }
   }
 });
+
+test('readAuthRedirect extracts the callback result and strips it from the URL', async () => {
+  const { readAuthRedirect } = await import('../lib/authErrors.ts');
+  assert.deepEqual(readAuthRedirect('?auth_error=denied'), { errorCode: 'denied', connected: null, cleanedSearch: '' });
+  assert.deepEqual(readAuthRedirect('?connected=google&x=1'), { errorCode: null, connected: 'google', cleanedSearch: '?x=1' });
+  assert.deepEqual(readAuthRedirect('?connected=evil'), { errorCode: null, connected: null, cleanedSearch: '' });
+  assert.deepEqual(readAuthRedirect(''), { errorCode: null, connected: null, cleanedSearch: '' });
+  assert.equal(authErrorMessage(readAuthRedirect('?auth_error=<script>').errorCode), authErrorMessage('provider_error'));
+});

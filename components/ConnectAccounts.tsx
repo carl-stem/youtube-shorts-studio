@@ -1,39 +1,65 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { AccountStatus } from '../types';
 
-interface AccountStatus {
-  kvConfigured: boolean;
-  authenticated: boolean;
-  google:  { channelName: string; connected: boolean } | null;
-  tiktok:  { channelName: string; connected: boolean } | null;
+interface Props {
+  status: AccountStatus | null;
+  loading: boolean;
+  /** Called after a disconnect so the page can re-fetch /api/auth/status. */
+  onChanged: () => void;
 }
 
-export default function ConnectAccounts() {
-  const [status, setStatus]   = useState<AccountStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+// Compact header button that opens the accounts panel. State lives in app/page.tsx
+// so the publish dialogs see the same connection status.
+export default function ConnectAccounts({ status, loading, onChanged }: Props) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
-  const refresh = async () => {
-    try {
-      const res  = await fetch('/api/auth/status');
-      const data = await res.json();
-      setStatus(data);
-    } catch { setStatus(null); }
-    finally { setLoading(false); }
-  };
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
+    const onPointerDown = (event: PointerEvent) => {
+      if (wrapperRef.current && event.target instanceof Node && !wrapperRef.current.contains(event.target)) setOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('pointerdown', onPointerDown);
+    return () => { window.removeEventListener('keydown', onKeyDown); window.removeEventListener('pointerdown', onPointerDown); };
+  }, [open]);
 
-  useEffect(() => { refresh(); }, []);
+  const connectedCount = (status?.google ? 1 : 0) + (status?.tiktok ? 1 : 0);
+  return (
+    <div ref={wrapperRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--bg-surface2)] hover:bg-[var(--border)] text-[var(--text-2)] border border-[var(--border)] transition cursor-pointer"
+      >
+        <span aria-hidden="true" className={`h-2 w-2 rounded-full ${connectedCount > 0 ? 'bg-emerald-400' : 'bg-slate-400'}`} />
+        {loading ? 'Accounts…' : connectedCount > 0 ? `Accounts (${connectedCount})` : 'Connect accounts'}
+      </button>
+      {open && (
+        <div role="dialog" aria-label="Publishing accounts" className="absolute right-0 top-full z-40 mt-2 w-[min(92vw,26rem)] shadow-2xl">
+          <AccountsPanel status={status} loading={loading} onChanged={onChanged} />
+        </div>
+      )}
+    </div>
+  );
+}
 
+function AccountsPanel({ status, loading, onChanged }: Props) {
   const [actionError, setActionError] = useState('');
   const disconnect = async (platform: 'google' | 'tiktok') => {
     setActionError('');
     try {
       const response = await fetch('/api/auth/disconnect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform }) });
       if (!response.ok) throw new Error('Disconnect failed. Please try again.');
-      await refresh();
+      onChanged();
     } catch (error) { setActionError(error instanceof Error ? error.message : 'Disconnect failed.'); }
   };
 
-  if (loading) return null;
+  if (loading) return <section className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-5 text-xs text-[var(--text-2)]">Checking connected accounts…</section>;
 
   if (!status?.kvConfigured) {
     return (

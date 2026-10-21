@@ -1,12 +1,12 @@
 'use client';
-import { useEffect, useState } from 'react';
-import type { DownloadItem } from '../types';
-import { uploadToYouTube } from '../lib/publish/youtubeUpload';
-
-interface AccountStatus {
-  google:  { channelName: string } | null;
-  tiktok:  { channelName: string } | null;
-}
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import type { AccountStatus, DownloadItem } from '../types';
+import type { ResumeRecord } from '../lib/publish/resumable';
+import {
+  UploadError, findResumableUpload, forgetResumableUpload, resumeYouTubeUpload, uploadToYouTube, type UploadProgress,
+} from '../lib/publish/youtubeUpload';
+import UploadProgressBar from './publish/UploadProgressBar';
 
 interface Props {
   item: DownloadItem;
@@ -45,7 +45,16 @@ export default function PublishClip({ item, accounts }: Props) {
   const [tiktokStatusLoading, setTiktokStatusLoading] = useState(false);
   const [youtubeVideoId, setYoutubeVideoId] = useState('');
   const [youtubeStatusLoading, setYoutubeStatusLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [resumeRecord, setResumeRecord] = useState<ResumeRecord | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const itemDurationSeconds = Number(item.durationSeconds ?? 0);
+
+  // A saved unfinished upload for this export (same name and size) can be resumed after a reload.
+  useEffect(() => {
+    if (open) setResumeRecord(findResumableUpload({ name: item.filename, size: item.sizeBytes }));
+  }, [open, item.filename, item.sizeBytes]);
+  useEffect(() => () => abortRef.current?.abort(), []);
   const [form, setForm]           = useState<FormState>({
     title:         item.filename.replace(/\.[^.]+$/, '').replace(/_/g, ' '),
     description:   '#Shorts #Music',
@@ -80,7 +89,7 @@ export default function PublishClip({ item, accounts }: Props) {
 
   const inputCls = 'w-full px-3 py-2 rounded-lg bg-[var(--bg-surface2)] border border-[var(--border-input)] text-[var(--text-1)] text-sm focus:outline-none focus:border-indigo-500 transition';
 
-  const publish = async () => {
+  const publish = async (resume: ResumeRecord | null = null) => {
     setPublishState('transferring'); setResult(null);
     try {
       const res  = await fetch(item.url);
@@ -92,19 +101,27 @@ export default function PublishClip({ item, accounts }: Props) {
       fd.append('video', file);
 
       if (platform === 'youtube') {
+        const controller = new AbortController();
+        abortRef.current = controller;
+        const options = { signal: controller.signal, onProgress: setUploadProgress };
         const privacy = form.privacy === 'public' || form.privacy === 'unlisted' ? form.privacy : 'private';
-        const d = await uploadToYouTube(file, {
-          title: form.title,
-          description: form.description,
-          tags: form.tags,
-          privacy,
-          publishAt: form.publishAt ? new Date(form.publishAt).toISOString() : null,
-          categoryId: '10',
-          madeForKids: false,
-        });
-        setYoutubeVideoId(d.videoId);
+        const d = resume
+          ? await resumeYouTubeUpload(file, resume, options)
+          : await uploadToYouTube(file, {
+            title: form.title,
+            description: form.description,
+            tags: form.tags,
+            privacy,
+            publishAt: form.publishAt ? new Date(form.publishAt).toISOString() : null,
+            categoryId: '10',
+            madeForKids: false,
+          }, options);
+        setResumeRecord(null);
+        setYoutubeVideoId(d.tracked ? d.videoId : '');
         setPublishState('processing');
-        setResult({ url: d.shortsUrl, message: 'YouTube accepted the upload. Processing may take a few minutes; publication is not confirmed yet.' });
+        setResult({ url: d.shortsUrl, message: d.tracked
+          ? 'YouTube accepted the upload. Processing may take a few minutes; publication is not confirmed yet.'
+          : 'YouTube accepted the upload, but status checks are unavailable. Check YouTube Studio for processing.' });
       } else {
         if (!creatorInfo || creatorLoading || (itemDurationSeconds > 0 && itemDurationSeconds > creatorInfo.maxVideoDurationSeconds)) {
           throw new Error(creatorError || 'TikTok account upload limits are not available. Refresh creator settings and try again.');
@@ -119,9 +136,19 @@ export default function PublishClip({ item, accounts }: Props) {
         setResult({ message: d.message || 'TikTok accepted the upload. Publication is not confirmed yet.' });
       }
     } catch (e: unknown) {
+      if (e instanceof UploadError && e.code === 'cancelled') {
+        setPublishState('ready');
+        setResumeRecord(findResumableUpload({ name: item.filename, size: item.sizeBytes }));
+        setResult({ message: e.message });
+        return;
+      }
       const msg = e instanceof Error ? e.message : 'Upload error';
       setPublishState('failed');
+      setResumeRecord(findResumableUpload({ name: item.filename, size: item.sizeBytes }));
       setResult({ error: msg });
+    } finally {
+      abortRef.current = null;
+      setUploadProgress(null);
     }
   };
 
@@ -173,12 +200,13 @@ export default function PublishClip({ item, accounts }: Props) {
         Publish
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) setOpen(false); }}>
+      {/* Portal: the step containers keep a transform from their entrance animation, which would trap a fixed overlay. */}
+      {open && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget && publishState !== 'transferring') setOpen(false); }}>
           <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md space-y-5 shadow-2xl">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-[var(--text-1)]">Publish Clip</h3>
-              <button onClick={() => setOpen(false)} className="text-[var(--text-3)] hover:text-[var(--text-1)] cursor-pointer text-xl leading-none">✕</button>
+              <button onClick={() => { abortRef.current?.abort(); setOpen(false); }} aria-label="Close" className="text-[var(--text-3)] hover:text-[var(--text-1)] cursor-pointer text-xl leading-none">✕</button>
             </div>
             <p className="text-xs text-[var(--text-2)] truncate">{item.filename}</p>
 
@@ -231,9 +259,21 @@ export default function PublishClip({ item, accounts }: Props) {
               </div>
             )}
 
+            {platform === 'youtube' && resumeRecord && publishState !== 'transferring' && (
+              <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-200 space-y-2">
+                <p>An unfinished upload of this export was found. Resuming keeps the title and settings you chose when it started.</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => void publish(resumeRecord)} className="rounded-lg bg-sky-600 px-3 py-1.5 font-semibold text-white hover:bg-sky-500">Resume upload</button>
+                  <button type="button" onClick={() => { forgetResumableUpload(resumeRecord.uploadId); setResumeRecord(null); }} className="rounded-lg border border-sky-400/40 px-3 py-1.5 font-semibold">Start over</button>
+                </div>
+              </div>
+            )}
+
+            {uploadProgress && publishState === 'transferring' && <UploadProgressBar progress={uploadProgress} onCancel={() => abortRef.current?.abort()} />}
+
             {result && (
               <div role="status" className={`rounded-xl px-4 py-3 text-sm ${result.error ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-amber-500/10 text-amber-200 border border-amber-500/20'}`}>
-                {result.error ? `Upload failed: ${result.error}. Your local export is unchanged.` : <>{result.message} {result.url && <a href={result.url} target="_blank" rel="noopener noreferrer" className="underline">View on YouTube →</a>}</>}
+                {result.error ? `Upload failed: ${result.error} Your local export is unchanged.` : <>{result.message} {result.url && <a href={result.url} target="_blank" rel="noopener noreferrer" className="underline">View on YouTube →</a>}</>}
                 {youtubeVideoId && <button type="button" onClick={() => void checkYouTubeStatus()} disabled={youtubeStatusLoading} className="mt-3 block rounded-lg border border-amber-300/30 px-3 py-1.5 text-xs font-semibold disabled:opacity-50">{youtubeStatusLoading ? 'Checking YouTube…' : 'Check YouTube status'}</button>}
                 {tiktokPublishId && <button type="button" onClick={() => void checkTikTokStatus()} disabled={tiktokStatusLoading} className="mt-3 block rounded-lg border border-amber-300/30 px-3 py-1.5 text-xs font-semibold disabled:opacity-50">{tiktokStatusLoading ? 'Checking TikTok…' : 'Check TikTok status'}</button>}
               </div>
@@ -248,7 +288,8 @@ export default function PublishClip({ item, accounts }: Props) {
               {publishState === 'transferring' ? '⟳ Uploading…' : publishState === 'processing' ? 'Processing — check status above' : publishState === 'processed' ? 'Processing complete — check status above' : publishState === 'awaiting-user' ? 'Finish in TikTok' : publishState === 'published' ? 'Published' : `Upload to ${platform === 'youtube' ? 'YouTube Shorts' : 'TikTok'}`}
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

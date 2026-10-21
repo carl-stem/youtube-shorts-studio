@@ -72,3 +72,18 @@ export interface AnalyticsVideo {
   comments: number;
   shortsUrl: string;
 }
+
+/** Response of GET /api/auth/status; fetched once by app/page.tsx and passed down. */
+export interface AccountStatus {
+  kvConfigured: boolean;
+  authenticated: boolean;
+  google: { channelName: string; connected: boolean } | null;
+  tiktok: { channelName: string; connected: boolean } | null;
+}
+
+/** Audio-mode project actions shown in the shared header. */
+export interface ProjectActions {
+  onSave: () => void;
+  onLoad: () => void;
+  codecLabel: string;
+}
