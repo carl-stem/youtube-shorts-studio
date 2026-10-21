@@ -223,9 +223,4 @@ Pure modules (`lib/editor`, `compose`, `layout`, `audioPlan`) have no DOM and ar
 
 **M1 status (2026-10-21): done.** The editor ships as "Editor (beta)" next to Audio and Video. Verified in headless Chromium with three test clips (add, cut, reorder, undo/redo, trim, export): a 10.0 s story exported as a 1080×1920 file of 9.985 s, with clips in the edited order. Step 3 already offers framing presets (center/left/right, fit with blurred edges), looks and per-clip mute. Deferred: `compose.ts` (frame description) arrives with text and captions in M2; `VideoStudio` keeps its own drawing and exporter until it is deleted in M3; the audio track can end up to ~0.1 s shorter than the video because recording pauses at each cut.
 
-## C. Remaining risks
-
-- YouTube upload URL may reject browser-origin PUTs (U-1a spike first; relay fallback).
-- Safari AudioEncoder/AAC availability; HEVC/iPhone .mov decode varies; VFR frame-exact seeking; OPFS quota on long exports.
-- Keep novice task time low as features grow; the "More control" split is the safeguard.
-- Paid tier design (billing provider, auth) is deferred to M8 and will require accounts — revisit the on-device-only decision then.
+**M2 status (2026-10-21): done.** Step 3 has four tabs: Picture & transition (framing, look, sound off, cut / fade through black / blend from the last clip), Text (per-clip text with three styles, top/middle/bottom, 2/3/5 s or whole clip), Captions (SRT/VTT per video file in that file's own time, editable, three styles, on/off) and Music (one song, Quiet/Balanced/Loud, quieter under clip sound, repeat, gentle fade in/out). `compose.ts` describes each frame and `audioPlan.ts` the music level; both are pure and tested. Audio mode now shares the SRT/VTT parser (`lib/media/captions.ts`), which fixes `.vtt` captions there. Verified in headless Chromium: a 3-clip story with a 1 s blend, a fade, text, captions and music exported at 11.00–11.02 s for an 11.0 s story, with the blend, fade, text and caption visible in the output. Ducking is "quieter under any unmuted clip" rather than speech detection; that refinement belongs with the silence analysis in M6.

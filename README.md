@@ -13,7 +13,7 @@
 | 🎵 **Audio engine** | Web Audio API — decodes WAV/MP3/OGG, fade-in/out, live FFT spectrum |
 | 🎨 **Live canvas** | 1080×1920 @ 60 fps — see every change instantly |
 | ✂️ **Editable segments** | Add, delete, and adjust start/duration per clip — not just auto-sliced |
-| 🎞️ **Editor (beta)** | Join several videos into one Short: trim, cut, reorder, framing presets, looks, undo/redo, gapless preview |
+| 🎞️ **Editor (beta)** | Join several videos into one Short: trim, cut, reorder, framing presets, looks, text, captions that stay in sync, background music that dips under clip sound, fade and blend transitions, undo/redo |
 | 🌈 **5 color themes** | Indigo→Pink, Fire, Ocean, Neon, Gold |
 | 📊 **3 spectrum styles** | Bars, Mirror Bars, Wave Line |
 | 🖼️ **3 backgrounds** | Blurred Art, Dark Gradient, Pure Dark |
