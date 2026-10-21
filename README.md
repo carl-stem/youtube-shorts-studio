@@ -19,7 +19,7 @@
 | 💬 **SRT / CC** | Upload a subtitle file — captions render on-canvas in every clip |
 | 📢 **CTA overlay** | Watermark / call-to-action text, top or above-spectrum position |
 | 🎬 **Export quality** | 1.5 / 3 / 6 / 8 Mbps — MP4 (H.264) or WebM (VP9) depending on browser |
-| 🚀 **Vercel-ready** | Static export (`next build` → `out/`) — zero backend required |
+| 🚀 **Vercel-ready** | Standard Next.js server build with optional API routes — editing and export run in the browser |
 
 ---
 
@@ -32,6 +32,17 @@ npm install
 npm run dev
 # → http://localhost:3000
 ```
+
+Copy `.env.example` to `.env.local` to enable the optional server features (see [SETUP.md](SETUP.md)).
+
+## API Routes
+
+The editor and export run entirely in the browser. Optional server routes under `app/api/` need environment variables and degrade to "not configured" without them:
+
+- `api/spotify/search` — Spotify track search for title/artist/cover fill
+- `api/whisper` — OpenAI Whisper auto-captions
+- `api/auth/*` — Google (YouTube) and TikTok OAuth connect/status/disconnect (tokens stored in Vercel KV)
+- `api/upload/*`, `api/analytics/youtube` — YouTube/TikTok upload and YouTube analytics (UI planned, see [docs/editor-plan.md](docs/editor-plan.md))
 
 ## Deploy to Vercel
 
@@ -47,11 +58,14 @@ Or click the **Deploy** button above to import directly into Vercel.
 
 ```
 ├── app/                   # Next.js App Router
+│   ├── api/               # Optional server routes (auth, upload, analytics, spotify, whisper)
 │   ├── layout.tsx
-│   ├── page.tsx
+│   ├── page.tsx           # Audio / Video workflow switch
+│   ├── manifest.ts
 │   └── globals.css
 ├── components/
-│   ├── Studio.tsx         # Main orchestrator — all state & audio engine
+│   ├── Studio.tsx         # Audio Short workflow — state & audio engine
+│   ├── VideoStudio.tsx    # Video Short workflow — clips, trim, export
 │   ├── SegmentEditor.tsx  # Editable clip segments
 │   ├── VisualStylePanel.tsx
 │   ├── MediaUploader.tsx  # Audio + Image + SRT dropzones
@@ -63,6 +77,8 @@ Or click the **Deploy** button above to import directly into Vercel.
 │   ├── canvasRenderer.ts  # All pure canvas drawing functions
 │   ├── srtParser.ts
 │   └── mediaCodec.ts
+├── docs/                  # Roadmap and specs (editor-plan.md)
+├── public/sw.js           # Service worker (offline shell + static asset cache)
 └── types/index.ts
 ```
 

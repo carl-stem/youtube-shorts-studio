@@ -1,6 +1,6 @@
 # Shorts Studio — Setup Guide
 
-> **1080×1920 vertical video generator** with one-click YouTube & TikTok publishing, Spotify metadata fill, Whisper auto-captions, and a live audio spectrum visualizer.
+> **1080×1920 vertical video generator** with Spotify metadata fill, Whisper auto-captions, and a live audio spectrum visualizer. One-click YouTube & TikTok publishing is planned (server routes exist; UI not yet reachable — see [docs/editor-plan.md](docs/editor-plan.md)).
 
 ---
 
@@ -35,7 +35,7 @@ The app works immediately without any API keys. File export, project save/load, 
 ## 2. Environment Variables Reference
 
 Add these in **Vercel Dashboard → your project → Settings → Environment Variables**.  
-For local dev, copy to a `.env.local` file (never commit this file).
+For local dev, copy `.env.example` to `.env.local` (never commit `.env.local`).
 
 | Variable | Required For | Where to Get It |
 |----------|-------------|-----------------|
@@ -68,7 +68,7 @@ OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## 3. Vercel KV Setup
 
-Vercel KV is a serverless Redis store used to securely persist OAuth tokens. Free tier: **30,000 requests/day**.
+Vercel KV is a serverless Redis store used to persist OAuth session state and tokens (stored unencrypted today; encryption at rest is planned, see [docs/editor-plan.md](docs/editor-plan.md)). Free tier: **30,000 requests/day**.
 
 **Steps:**
 1. Go to **[vercel.com/dashboard](https://vercel.com/dashboard)** → your project
@@ -170,7 +170,7 @@ TIKTOK_CLIENT_KEY    = awxxxxxxxxxxxxxxxx
 TIKTOK_CLIENT_SECRET = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-> **Privacy levels:** The app defaults to `PUBLIC_TO_EVERYONE`. Change per clip in the publish dialog.
+> **Privacy levels:** The publish dialog is planned and not yet reachable from the app (see [docs/editor-plan.md](docs/editor-plan.md)).
 
 ---
 
@@ -282,7 +282,7 @@ Or trigger a redeploy from the Vercel Dashboard.
 |---------|:-------:|:-------:|:------:|:-----------:|:-----------:|
 | Canvas preview (60fps) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Local export — MediaRecorder | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Fast export — WebCodecs (H.264) | ✅¹ | ✅ | ✅ | ✅ | ✅ |
+| Fast export — WebCodecs (H.264) | planned¹ | planned | planned | planned | planned |
 | Project save / load (.json) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Editable segments | ✅ | ✅ | ✅ | ✅ | ✅ |
 | SRT subtitle upload | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -291,13 +291,15 @@ Or trigger a redeploy from the Vercel Dashboard.
 | Spotify metadata fill | ❌ | ✅ | ✅ | ✅ | ✅ |
 | Whisper auto-captions | ❌ | ❌ | ✅ | ✅ | ✅ |
 | YouTube OAuth connect | ❌ | ❌ | ❌ | ✅ | ✅ |
-| One-click YouTube upload | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Scheduled YouTube publish | ❌ | ❌ | ❌ | ✅ | ✅ |
-| YouTube analytics dashboard | ❌ | ❌ | ❌ | ✅ | ✅ |
+| One-click YouTube upload | ❌ | ❌ | ❌ | planned² | planned² |
+| Scheduled YouTube publish | ❌ | ❌ | ❌ | planned² | planned² |
+| YouTube analytics dashboard | ❌ | ❌ | ❌ | planned² | planned² |
 | TikTok OAuth connect | ❌ | ❌ | ❌ | ❌ | ✅ |
-| One-click TikTok upload | ❌ | ❌ | ❌ | ❌ | ✅ |
+| One-click TikTok upload | ❌ | ❌ | ❌ | ❌ | planned² |
 
-¹ WebCodecs requires Chrome 94+, Edge 94+, or Safari 17.2+. Falls back to MediaRecorder automatically on unsupported browsers.
+¹ Not wired up yet: all exports currently use MediaRecorder (real-time). Planned, see [docs/editor-plan.md](docs/editor-plan.md).
+
+² API routes exist but the publish/analytics UI is not yet reachable from the app. Planned, see [docs/editor-plan.md](docs/editor-plan.md).
 
 ---
 
@@ -308,8 +310,8 @@ Shorts Studio (Next.js 14, App Router)
 │
 ├── Client (browser)
 │   ├── Canvas renderer    — 1080×1920 @60fps via requestAnimationFrame
-│   ├── WebCodecs encoder  — Fast H.264 encoding (mp4-muxer)
-│   ├── MediaRecorder      — Fallback real-time recording
+│   ├── WebCodecs encoder  — Fast H.264 encoding (planned; not used yet)
+│   ├── MediaRecorder      — Real-time recording (current export path)
 │   └── Web Audio API      — Decoding, playback, FFT spectrum
 │
 └── Server (Vercel Edge/Node)
@@ -318,7 +320,7 @@ Shorts Studio (Next.js 14, App Router)
     ├── /api/analytics/*   — YouTube Analytics API
     ├── /api/spotify/*     — Spotify search proxy
     ├── /api/whisper       — OpenAI Whisper transcription
-    └── Vercel KV          — Encrypted OAuth token storage
+    └── Vercel KV          — OAuth token storage (encryption planned)
 ```
 
 ---
