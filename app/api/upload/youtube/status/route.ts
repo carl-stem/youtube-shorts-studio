@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getValidGoogleToken } from '../../../../../lib/tokenManager';
 import { kvGet } from '../../../../../lib/kv';
+import { isValidYouTubeVideoId } from '../../../../../lib/youtubeMetadata';
 
 export async function GET(req: NextRequest) {
   const sessionId = req.cookies.get('oauth_session')?.value;
   const videoId = req.nextUrl.searchParams.get('videoId');
-  if (!sessionId || !videoId || !/^[a-zA-Z0-9_-]{6,64}$/.test(videoId)) {
-    return NextResponse.json({ error: 'Invalid or missing YouTube video' }, { status: 400 });
+  if (!sessionId || !isValidYouTubeVideoId(videoId)) {
+    return NextResponse.json({ error: 'Invalid or missing YouTube video', code: 'invalid_video_id' }, { status: 400 });
   }
   const owned = await kvGet<{ videoId: string }>(`youtube:upload:${sessionId}:${videoId}`);
   if (!owned || owned.videoId !== videoId) return NextResponse.json({ error: 'Upload not found' }, { status: 404 });

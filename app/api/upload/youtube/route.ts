@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getValidGoogleToken } from '../../../../lib/tokenManager';
 import { kvSetWithExpiry } from '../../../../lib/kv';
+import { validateYouTubeUpload } from '../../../../lib/youtubeMetadata';
 
 export const maxDuration = 300;
 
@@ -15,31 +16,22 @@ export async function POST(req: NextRequest) {
   try {
     const form      = await req.formData();
     const videoFile = form.get('video') as File | null;
-    const title       = (form.get('title')       as string) || 'My Short';
-    const description = (form.get('description') as string) || '';
-    const tags        = ((form.get('tags') as string) || '').split(',').map(t => t.trim()).filter(Boolean);
-    const privacy     = (form.get('privacy') as string) || 'public';
-    const publishAt   = form.get('publishAt') as string | null;
+    const field = (name: string) => { const v = form.get(name); return typeof v === 'string' ? v : null; };
 
-    if (!videoFile || videoFile.size === 0) return NextResponse.json({ error: 'A non-empty video file is required' }, { status: 400 });
-    if (videoFile.size > 256 * 1024 * 1024) return NextResponse.json({ error: 'Video exceeds the 256 MB upload limit' }, { status: 413 });
-    if (!['public', 'unlisted', 'private'].includes(privacy)) return NextResponse.json({ error: 'Invalid privacy setting' }, { status: 400 });
-    if (publishAt && (!Number.isFinite(Date.parse(publishAt)) || Date.parse(publishAt) <= Date.now())) return NextResponse.json({ error: 'Scheduled publish time must be in the future' }, { status: 400 });
-
-    const metadata: Record<string, unknown> = {
-      snippet: {
-        title: title.slice(0, 100),
-        description: description.slice(0, 5000),
-        tags: tags.slice(0, 500),
-        categoryId: '10',
-        defaultLanguage: 'en',
-      },
-      status: {
-        privacyStatus: privacy,
-        selfDeclaredMadeForKids: false,
-        ...(publishAt ? { publishAt } : {}),
-      },
-    };
+    if (!videoFile || videoFile.size === 0) return NextResponse.json({ error: 'A non-empty video file is required', code: 'missing_video' }, { status: 400 });
+    if (videoFile.size > 256 * 1024 * 1024) return NextResponse.json({ error: 'Video exceeds the 256 MB upload limit', code: 'video_too_large' }, { status: 413 });
+    const validation = validateYouTubeUpload({
+      videoType:   videoFile.type,
+      title:       field('title'),
+      description: field('description'),
+      tags:        field('tags'),
+      privacy:     field('privacy'),
+      publishAt:   field('publishAt'),
+      categoryId:  field('categoryId'),
+      madeForKids: field('selfDeclaredMadeForKids'),
+    });
+    if (!validation.ok) return NextResponse.json({ error: validation.error, code: validation.code }, { status: validation.status });
+    const { contentType, metadata } = validation;
 
     const initRes = await fetch(
       'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
@@ -48,7 +40,7 @@ export async function POST(req: NextRequest) {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json; charset=UTF-8',
-          'X-Upload-Content-Type': videoFile.type || 'video/mp4',
+          'X-Upload-Content-Type': contentType,
           'X-Upload-Content-Length': videoFile.size.toString(),
         },
         body: JSON.stringify(metadata),
@@ -68,7 +60,7 @@ export async function POST(req: NextRequest) {
     const uploadRes  = await fetch(parsedUploadUrl, {
       method: 'PUT',
       headers: {
-        'Content-Type': videoFile.type || 'video/mp4',
+        'Content-Type': contentType,
         'Content-Length': videoFile.size.toString(),
       },
       body: videoBytes,
