@@ -25,7 +25,7 @@ test('YouTube validation and the shared helper agree on content types', () => {
 });
 
 test('TikTok upload does not compare the raw MIME type exactly (webm exports were rejected with 415)', async () => {
-  const source = await readFile(new URL('../app/api/upload/tiktok/route.ts', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../app/api/upload/tiktok/init/route.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /\]\.includes\(contentType\)/);
   assert.match(source, /isUploadableVideoMime\(/);
 });

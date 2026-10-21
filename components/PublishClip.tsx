@@ -8,6 +8,7 @@ import {
 } from '../lib/publish/youtubeUpload';
 import { initialYouTubeForm, isShortsCandidate, toYouTubeDraft, youTubeFormProblem, type YouTubeForm } from '../lib/publish/youtubeDraft';
 import { prepareThumbnail } from '../lib/publish/thumbnail';
+import { uploadToTikTok } from '../lib/publish/tiktokUpload';
 import { DEFAULT_CATEGORY_ID } from '../lib/youtubeMetadata';
 import UploadProgressBar from './publish/UploadProgressBar';
 import YouTubeFields from './publish/YouTubeFields';
@@ -39,7 +40,6 @@ export default function PublishClip({ item, accounts, defaultCategoryId = DEFAUL
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [resumeRecord, setResumeRecord] = useState<ResumeRecord | null>(null);
   const [ytForm, setYtForm] = useState<YouTubeForm>(() => initialYouTubeForm(item, defaultCategoryId));
-  const [caption, setCaption] = useState('');
   const [thumbnail, setThumbnail] = useState<{ name: string; previewUrl: string; blob: Blob } | null>(null);
   const [thumbnailBusy, setThumbnailBusy] = useState(false);
   const [thumbnailError, setThumbnailError] = useState('');
@@ -128,16 +128,12 @@ export default function PublishClip({ item, accounts, defaultCategoryId = DEFAUL
     if (!creatorInfo || creatorLoading || (itemDurationSeconds > 0 && itemDurationSeconds > creatorInfo.maxVideoDurationSeconds)) {
       throw new Error(creatorError || 'TikTok account upload limits are not available. Refresh creator settings and try again.');
     }
-    const fd = new FormData();
-    fd.append('video', await readExport());
-    fd.append('caption', caption);
-    fd.append('privacy', 'SELF_ONLY');
-    const r = await fetch('/api/upload/tiktok', { method: 'POST', body: fd });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const d = await uploadToTikTok(await readExport(), { signal: controller.signal, onProgress: setUploadProgress });
     setTiktokPublishId(d.publishId);
     setPublishState('awaiting-user');
-    setResult({ message: d.message || 'TikTok accepted the upload. Publication is not confirmed yet.' });
+    setResult({ message: 'Upload sent to TikTok. Open the TikTok app to review and finish posting it — it is not published yet.' });
   };
 
   const publish = async (resume: ResumeRecord | null = null) => {
@@ -249,7 +245,7 @@ export default function PublishClip({ item, accounts, defaultCategoryId = DEFAUL
             )}
 
             {platform === 'tiktok' && (
-              <TikTokFields caption={caption} onCaptionChange={setCaption} creatorInfo={creatorInfo} creatorLoading={creatorLoading} creatorError={creatorError} itemDurationSeconds={itemDurationSeconds} />
+              <TikTokFields creatorInfo={creatorInfo} creatorLoading={creatorLoading} creatorError={creatorError} itemDurationSeconds={itemDurationSeconds} />
             )}
 
             {platform === 'youtube' && resumeRecord && publishState !== 'transferring' && (
@@ -262,7 +258,7 @@ export default function PublishClip({ item, accounts, defaultCategoryId = DEFAUL
               </div>
             )}
 
-            {uploadProgress && publishState === 'transferring' && <UploadProgressBar progress={uploadProgress} onCancel={() => abortRef.current?.abort()} />}
+            {uploadProgress && publishState === 'transferring' && <UploadProgressBar progress={uploadProgress} destination={platform === 'youtube' ? 'YouTube' : 'TikTok'} canResume={platform === 'youtube'} onCancel={() => abortRef.current?.abort()} />}
 
             {result && <PublishResult result={result} statusCheck={statusCheck} />}
 

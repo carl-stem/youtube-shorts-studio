@@ -3,12 +3,15 @@ import type { UploadProgress } from '../../lib/publish/youtubeUpload';
 
 interface Props {
   progress: UploadProgress;
+  destination: 'YouTube' | 'TikTok';
+  /** YouTube uploads can be resumed later; TikTok upload links cannot. */
+  canResume: boolean;
   onCancel: () => void;
 }
 
 const mb = (bytes: number) => (bytes / 1024 / 1024).toFixed(1);
 
-export default function UploadProgressBar({ progress, onCancel }: Props) {
+export default function UploadProgressBar({ progress, destination, canResume, onCancel }: Props) {
   const pct = progress.totalBytes > 0 ? Math.floor((progress.sentBytes / progress.totalBytes) * 100) : 0;
   return (
     <div className="space-y-2 rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3">
@@ -33,13 +36,15 @@ export default function UploadProgressBar({ progress, onCancel }: Props) {
       <div className="flex items-center justify-between gap-3">
         {/* Shown so the owner can tell which path a real upload used. */}
         <span className="text-[11px] text-[var(--text-3)]" data-upload-mode={progress.mode}>
-          {progress.mode === 'direct' ? 'Sending straight to YouTube' : 'Sending through Shorts Studio'}
+          {progress.mode === 'direct' ? `Sending straight to ${destination}` : 'Sending through Shorts Studio'}
         </span>
         <button type="button" onClick={onCancel} className="rounded-lg border border-rose-500/40 px-3 py-1 text-xs font-semibold text-rose-400 hover:bg-rose-500/10">
-          Pause upload
+          {canResume ? 'Pause upload' : 'Stop upload'}
         </button>
       </div>
-      <p className="text-[11px] text-[var(--text-3)]">Keep this tab open. If the upload stops, publish the same export again to continue where it left off.</p>
+      <p className="text-[11px] text-[var(--text-3)]">
+        Keep this tab open.{canResume ? ' If the upload stops, publish the same export again to continue where it left off.' : ''}
+      </p>
     </div>
   );
 }

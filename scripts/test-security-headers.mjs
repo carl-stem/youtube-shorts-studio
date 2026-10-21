@@ -30,6 +30,7 @@ test('production headers include CSP and the hardening headers', async () => {
   assert.deepEqual(csp['frame-ancestors'], ["'none'"]);
   assert.ok(csp['media-src'].includes('blob:'));
   assert.ok(csp['connect-src'].includes('https://www.googleapis.com'));
+  assert.ok(csp['connect-src'].includes('https://*.tiktokapis.com'), 'direct TikTok chunk uploads');
   assert.ok(csp['connect-src'].includes('blob:'));
   assert.ok(csp['img-src'].includes('https://i.scdn.co'));
   assert.ok(csp['font-src'].includes('https://fonts.gstatic.com'));
