@@ -4,8 +4,11 @@ export interface CodecInfo {
   label: string;
 }
 
+/** Value used for server render and the first client render, before detection runs. */
+export const SSR_CODEC_INFO: CodecInfo = { mime: '', ext: 'webm', label: 'SSR' };
+
 export function getSupportedMimeType(): CodecInfo {
-  if (typeof window === 'undefined') return { mime: '', ext: 'webm', label: 'SSR' };
+  if (typeof window === 'undefined') return SSR_CODEC_INFO;
   const candidates: CodecInfo[] = [
     { mime: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', ext: 'mp4', label: 'MP4 (H.264 / AAC)' },
     { mime: 'video/mp4', ext: 'mp4', label: 'MP4 Container' },

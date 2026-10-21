@@ -7,7 +7,8 @@ import {
   renderShortsFrame, computeSpectrumFromAnalyser,
   updateBlurredBackground, createDefaultCoverImage,
 } from '../lib/canvasRenderer';
-import { getSupportedMimeType } from '../lib/mediaCodec';
+import { SSR_CODEC_INFO, getSupportedMimeType } from '../lib/mediaCodec';
+import type { CodecInfo } from '../lib/mediaCodec';
 import { parseSRT } from '../lib/srtParser';
 import { serializeProject, downloadProject, loadProjectFromFile } from '../lib/projectSerializer';
 import { useToast } from '../hooks/useToast';
@@ -125,10 +126,9 @@ export default function Studio() {
   const vizRef             = useRef<VizConfig>(DEFAULT_VIZ);
   const metaRef            = useRef<TrackMeta>(DEFAULT_META);
 
-  // Codec
-  const detectedFormat = useRef(
-    typeof window !== 'undefined' ? getSupportedMimeType() : { mime: '', ext: 'webm', label: 'webm' },
-  ).current;
+  // Codec: detected after mount so the first client render matches the server render.
+  const [detectedFormat, setDetectedFormat] = useState<CodecInfo>(SSR_CODEC_INFO);
+  useEffect(() => { setDetectedFormat(getSupportedMimeType()); }, []);
 
   // ── keep mirror refs in sync ──
   useEffect(() => { vizRef.current = vizConfig; }, [vizConfig]);
