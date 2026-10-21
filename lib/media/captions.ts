@@ -22,3 +22,10 @@ export function parseCaptionFile(text: string): SRTCue[] {
   }
   return cues.sort((a, b) => a.start - b.start);
 }
+
+/** Parses captions and counts timed entries that could not be read, so people can be told. */
+export function parseCaptionReport(text: string): { cues: SRTCue[]; unreadable: number } {
+  const cues = parseCaptionFile(text);
+  const timed = text.replace(/\r/g, '').split(/\n\s*\n/).filter((block) => block.includes('-->')).length;
+  return { cues, unreadable: Math.max(0, timed - cues.length) };
+}

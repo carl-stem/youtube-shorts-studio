@@ -167,7 +167,8 @@ export function removeText(project: Project, textId: Id): Project {
 function updateVideoMedia(project: Project, mediaId: Id, update: (media: VideoMedia) => VideoMedia): Project {
   const media = project.media[mediaId];
   if (media?.kind !== 'video') return project;
-  return touch(project, { media: { ...project.media, [mediaId]: update(media) } });
+  const next = update(media);
+  return next === media ? project : touch(project, { media: { ...project.media, [mediaId]: next } });
 }
 
 /** Captions for one video file, in that file's own time. */
@@ -177,10 +178,20 @@ export function setMediaCaptions(project: Project, mediaId: Id, cues: SRTCue[]):
 }
 
 export function editCaption(project: Project, mediaId: Id, cueIndex: number, text: string): Project {
+  return updateCaption(project, mediaId, cueIndex, { text });
+}
+
+/** Changes one caption's text or timing (in the file's own seconds); a cue always lasts at least 0.1 s. */
+export function updateCaption(project: Project, mediaId: Id, cueIndex: number, patch: Partial<SRTCue>): Project {
   return updateVideoMedia(project, mediaId, (media) => {
     const captions = media.captions ?? [];
-    if (!captions[cueIndex] || captions[cueIndex].text === text) return media;
-    return { ...media, captions: captions.map((cue, index) => (index === cueIndex ? { ...cue, text } : cue)) };
+    const cue = captions[cueIndex];
+    if (!cue) return media;
+    const ms = (value: number) => Math.round(value * 1000) / 1000;
+    const start = ms(clamp(patch.start ?? cue.start, 0, media.duration));
+    const next = { start, end: ms(Math.max(start + 0.1, patch.end ?? cue.end)), text: patch.text ?? cue.text };
+    if (next.start === cue.start && next.end === cue.end && next.text === cue.text) return media;
+    return { ...media, captions: captions.map((entry, index) => (index === cueIndex ? next : entry)) };
   });
 }
 
@@ -214,4 +225,9 @@ export function updateMusic(project: Project, patch: Partial<Omit<MusicBed, 'med
 
 export function removeMusic(project: Project): Project {
   return project.music ? removeMedia(project, project.music.mediaId) : project;
+}
+
+export function renameProject(project: Project, name: string): Project {
+  const trimmed = name.slice(0, 100);
+  return trimmed === project.name ? project : touch(project, { name: trimmed });
 }
