@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test scripts/test-*.mjs"
+    "test": "node --experimental-strip-types --import ./scripts/register-ts-resolve.mjs --test scripts/test-*.mjs"
   },
   "dependencies": {
     "@vercel/kv": "^3.0.0",
