@@ -1,5 +1,6 @@
 import { kvDel, kvGet, kvSet } from './kv';
 import { cookies } from 'next/headers';
+import { openJson, parseEncryptionKey, sealJson, tokenEncryptionMode } from './crypto';
 
 export interface OAuthTokens {
   accessToken: string;
@@ -15,14 +16,50 @@ async function hasSession(sessionId: string): Promise<boolean> {
   return !!sessionCookie && sessionCookie === sessionId;
 }
 
+// ── Encryption at rest ────────────────────────────────────────────────────────
+
+let plaintextWarned = false;
+
+function encryptionKey(): Buffer | null {
+  return parseEncryptionKey(process.env.TOKEN_ENC_KEY);
+}
+
+/** False when tokens must not be stored (production without a valid TOKEN_ENC_KEY). */
+export function tokenEncryptionReady(): boolean {
+  return tokenEncryptionMode(encryptionKey(), process.env.NODE_ENV) !== 'refuse';
+}
+
+async function writeTokens(key: string, t: OAuthTokens): Promise<boolean> {
+  const encKey = encryptionKey();
+  const mode = tokenEncryptionMode(encKey, process.env.NODE_ENV);
+  if (mode === 'refuse') {
+    console.error('[tokens] TOKEN_ENC_KEY missing or invalid; refusing to store plaintext tokens in production');
+    return false;
+  }
+  if (mode === 'plaintext' && !plaintextWarned) {
+    plaintextWarned = true;
+    console.warn('[tokens] TOKEN_ENC_KEY not set; storing OAuth tokens unencrypted (development only)');
+  }
+  return kvSet(key, sealJson(t, encKey));
+}
+
+async function readTokens(key: string): Promise<OAuthTokens | null> {
+  const encKey = encryptionKey();
+  const opened = openJson<OAuthTokens>(await kvGet<unknown>(key), encKey);
+  if (opened.undecryptable) console.error(`[tokens] could not decrypt ${key.split(':').slice(0, 2).join(':')} value; treating as disconnected`);
+  // Lazy migration: legacy plaintext is returned as-is and re-saved sealed when a key exists.
+  if (opened.legacyPlaintext && opened.value && encKey) await kvSet(key, sealJson(opened.value, encKey));
+  return opened.value;
+}
+
 // ── Google ────────────────────────────────────────────────────────────────────
 
 export async function getGoogleTokens(sessionId: string): Promise<OAuthTokens | null> {
-  return kvGet<OAuthTokens>(`tokens:google:${sessionId}`);
+  return readTokens(`tokens:google:${sessionId}`);
 }
 
 export async function setGoogleTokens(sessionId: string, t: OAuthTokens): Promise<boolean> {
-  return kvSet(`tokens:google:${sessionId}`, t);
+  return writeTokens(`tokens:google:${sessionId}`, t);
 }
 
 export async function clearGoogleTokens(sessionId: string): Promise<void> {
@@ -65,11 +102,11 @@ export async function getValidGoogleToken(sessionId: string): Promise<string | n
 // ── TikTok ────────────────────────────────────────────────────────────────────
 
 export async function getTikTokTokens(sessionId: string): Promise<OAuthTokens | null> {
-  return kvGet<OAuthTokens>(`tokens:tiktok:${sessionId}`);
+  return readTokens(`tokens:tiktok:${sessionId}`);
 }
 
 export async function setTikTokTokens(sessionId: string, t: OAuthTokens): Promise<boolean> {
-  return kvSet(`tokens:tiktok:${sessionId}`, t);
+  return writeTokens(`tokens:tiktok:${sessionId}`, t);
 }
 
 export async function clearTikTokTokens(sessionId: string): Promise<void> {

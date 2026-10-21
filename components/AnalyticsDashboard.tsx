@@ -28,17 +28,23 @@ function Bar({ value, max }: { value: number; max: number }) {
 export default function AnalyticsDashboard({ open, onClose }: Props) {
   const [data, setData]       = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [error, setError]     = useState<{ message: string; code?: string } | null>(null);
 
   useEffect(() => {
     if (!open || data) return;
     setLoading(true); setError(null);
-    fetch('/api/analytics/youtube')
-      .then(r => r.json())
-      .then((d: AnalyticsData & { error?: string }) => { if (d.error) throw new Error(d.error); setData(d); })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Unknown error'))
+    fetch('/api/analytics/youtube', { cache: 'no-store' })
+      .then(async (r) => {
+        const d = await r.json().catch(() => ({})) as Partial<AnalyticsData> & { error?: string; code?: string };
+        if (!r.ok || d.error || !d.videos || !d.totals) {
+          setError({ message: d.error || 'Could not load YouTube analytics. Try again later.', code: d.code ?? (r.status === 401 ? 'not_connected' : undefined) });
+          return;
+        }
+        setData({ videos: d.videos, totals: d.totals });
+      })
+      .catch(() => setError({ message: 'Could not reach the server. Check your connection and try again.' }))
       .finally(() => setLoading(false));
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- fetch once per open; `data` caches the result
 
   const maxViews = data ? Math.max(...data.videos.map(v => v.views), 1) : 1;
 
@@ -58,9 +64,9 @@ export default function AnalyticsDashboard({ open, onClose }: Props) {
 
           {error && (
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-xs text-amber-300">
-              {error.includes('not connected')
-                ? '🔗 Connect your YouTube account in Step 4 to see analytics.'
-                : `Error: ${error}`}
+              {error.code === 'not_connected'
+                ? '🔗 Connect your YouTube account with the Accounts button at the top of the page to see analytics.'
+                : error.message}
             </div>
           )}
 

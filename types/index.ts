@@ -34,6 +34,9 @@ export interface DownloadItem {
   url: string;
   sizeBytes: number;
   durationSeconds?: number;
+  /** Output frame size; used for Shorts-vs-long publishing defaults. */
+  width?: number;
+  height?: number;
 }
 
 export interface AlbumTrackFile {
@@ -71,4 +74,19 @@ export interface AnalyticsVideo {
   likes: number;
   comments: number;
   shortsUrl: string;
+}
+
+/** Response of GET /api/auth/status; fetched once by app/page.tsx and passed down. */
+export interface AccountStatus {
+  kvConfigured: boolean;
+  authenticated: boolean;
+  google: { channelName: string; connected: boolean } | null;
+  tiktok: { channelName: string; connected: boolean } | null;
+}
+
+/** Audio-mode project actions shown in the shared header. */
+export interface ProjectActions {
+  onSave: () => void;
+  onLoad: () => void;
+  codecLabel: string;
 }

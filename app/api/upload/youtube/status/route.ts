@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getValidGoogleToken } from '../../../../../lib/tokenManager';
 import { kvGet } from '../../../../../lib/kv';
+import { isValidYouTubeVideoId } from '../../../../../lib/youtubeMetadata';
 
 export async function GET(req: NextRequest) {
   const sessionId = req.cookies.get('oauth_session')?.value;
   const videoId = req.nextUrl.searchParams.get('videoId');
-  if (!sessionId || !videoId || !/^[a-zA-Z0-9_-]{6,64}$/.test(videoId)) {
-    return NextResponse.json({ error: 'Invalid or missing YouTube video' }, { status: 400 });
+  if (!sessionId || !isValidYouTubeVideoId(videoId)) {
+    return NextResponse.json({ error: 'Invalid or missing YouTube video', code: 'invalid_video_id' }, { status: 400 });
   }
   const owned = await kvGet<{ videoId: string }>(`youtube:upload:${sessionId}:${videoId}`);
   if (!owned || owned.videoId !== videoId) return NextResponse.json({ error: 'Upload not found' }, { status: 404 });
@@ -17,7 +18,10 @@ export async function GET(req: NextRequest) {
       headers: { Authorization: `Bearer ${token}` },
     });
     const payload = await response.json();
-    if (!response.ok) return NextResponse.json({ error: payload.error?.message || 'Could not check YouTube processing status' }, { status: 502 });
+    if (!response.ok) {
+      console.error('[upload/youtube/status] provider error', response.status, payload.error);
+      return NextResponse.json({ error: 'Could not check YouTube processing status', code: 'provider_error' }, { status: 502 });
+    }
     const video = payload.items?.[0];
     if (!video) return NextResponse.json({ error: 'YouTube video not found' }, { status: 404 });
     const processingStatus = video.processingDetails?.processingStatus;

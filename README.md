@@ -13,13 +13,16 @@
 | 🎵 **Audio engine** | Web Audio API — decodes WAV/MP3/OGG, fade-in/out, live FFT spectrum |
 | 🎨 **Live canvas** | 1080×1920 @ 60 fps — see every change instantly |
 | ✂️ **Editable segments** | Add, delete, and adjust start/duration per clip — not just auto-sliced |
+| 🎞️ **Video editor** | Join several videos (or a ZIP of them) into one Short: trim, cut, reorder, framing presets with zoom and drag, looks, text, captions that stay in sync, background music that dips under clip sound, fade and blend transitions, undo/redo |
+| 💾 **Projects** | Video projects autosave in the browser, reopen from "My projects", and back up to a `.shortsproject.json` file; moved files are found again with a relink step |
 | 🌈 **5 color themes** | Indigo→Pink, Fire, Ocean, Neon, Gold |
 | 📊 **3 spectrum styles** | Bars, Mirror Bars, Wave Line |
 | 🖼️ **3 backgrounds** | Blurred Art, Dark Gradient, Pure Dark |
 | 💬 **SRT / CC** | Upload a subtitle file — captions render on-canvas in every clip |
 | 📢 **CTA overlay** | Watermark / call-to-action text, top or above-spectrum position |
 | 🎬 **Export quality** | 1.5 / 3 / 6 / 8 Mbps — MP4 (H.264) or WebM (VP9) depending on browser |
-| 🚀 **Vercel-ready** | Static export (`next build` → `out/`) — zero backend required |
+| 📤 **Publish** | YouTube (resumable upload, schedule, category, thumbnail) and TikTok inbox drafts from any finished export |
+| 🚀 **Vercel-ready** | Standard Next.js server build with optional API routes — editing and export run in the browser |
 
 ---
 
@@ -32,6 +35,21 @@ npm install
 npm run dev
 # → http://localhost:3000
 ```
+
+Copy `.env.example` to `.env.local` to enable the optional server features (see [SETUP.md](SETUP.md)).
+
+## API Routes
+
+The editor and export run entirely in the browser. Optional server routes under `app/api/` need environment variables and degrade to "not configured" without them:
+
+- `api/spotify/search` — Spotify track search for title/artist/cover fill
+- `api/whisper` — OpenAI Whisper auto-captions
+- `api/auth/*` — Google (YouTube) and TikTok OAuth connect/status/disconnect (tokens stored in Vercel KV)
+- `api/upload/youtube/{session,chunk,status,thumbnail}` — YouTube publishing: the server only creates the resumable upload session; the browser sends the video straight to Google in 8 MiB chunks (falling back to a session-scoped 4 MiB relay if the browser blocks it), with pause/resume, category, made-for-kids, scheduling and custom thumbnails
+- `api/upload/tiktok/{init,chunk,status}` — TikTok inbox upload: the browser sends chunks straight to TikTok (videos over 4 MB need the direct path; see [SETUP.md](SETUP.md#publishing-how-uploads-travel))
+- `api/analytics/youtube` — recent Shorts and totals, opened from the 📊 button in the header once YouTube is connected
+
+Connect accounts with the **Accounts** button in the header; finished exports in both workflows get a **Publish** button.
 
 ## Deploy to Vercel
 
@@ -47,11 +65,14 @@ Or click the **Deploy** button above to import directly into Vercel.
 
 ```
 ├── app/                   # Next.js App Router
+│   ├── api/               # Optional server routes (auth, upload, analytics, spotify, whisper)
 │   ├── layout.tsx
-│   ├── page.tsx
+│   ├── page.tsx           # Audio / Video workflow switch
+│   ├── manifest.ts
 │   └── globals.css
 ├── components/
-│   ├── Studio.tsx         # Main orchestrator — all state & audio engine
+│   ├── Studio.tsx         # Audio Short workflow — state & audio engine
+│   ├── editor/            # Video editor: start screen, steps, storyboard, preview, panels
 │   ├── SegmentEditor.tsx  # Editable clip segments
 │   ├── VisualStylePanel.tsx
 │   ├── MediaUploader.tsx  # Audio + Image + SRT dropzones
@@ -60,9 +81,13 @@ Or click the **Deploy** button above to import directly into Vercel.
 │   ├── Header.tsx
 │   └── ConsoleLog.tsx
 ├── lib/
+│   ├── editor/            # Project model, edit operations, timeline, undo, file format, browser storage
+│   ├── render/            # Formats/framing, frame drawing, sequence player, recorder export
 │   ├── canvasRenderer.ts  # All pure canvas drawing functions
 │   ├── srtParser.ts
 │   └── mediaCodec.ts
+├── docs/                  # Roadmap and specs (editor-plan.md)
+├── public/sw.js           # Service worker (offline shell + static asset cache)
 └── types/index.ts
 ```
 

@@ -1,0 +1,22 @@
+{
+  "_type": "shorts-studio-editor",
+  "schemaVersion": 1,
+  "id": "fixture-project",
+  "name": "Beach day",
+  "createdAt": "2026-10-21T10:00:00.000Z",
+  "updatedAt": "2026-10-21T11:00:00.000Z",
+  "format": "short",
+  "media": {
+    "v1": { "id": "v1", "kind": "video", "name": "beach.mp4", "size": 1048576, "lastModified": 1760000000000, "duration": 12.5, "width": 1920, "height": 1080,
+      "captions": [{ "start": 1, "end": 2.5, "text": "Look at the waves" }] },
+    "v2": { "id": "v2", "kind": "video", "name": "sunset.mov", "size": 2097152, "lastModified": 1760000000000, "duration": 8, "width": 1080, "height": 1920 },
+    "m1": { "id": "m1", "kind": "audio", "name": "song.mp3", "size": 512000, "lastModified": 1760000000000, "duration": 30 }
+  },
+  "story": [
+    { "id": "c1", "mediaId": "v1", "in": 0.5, "out": 6, "framing": { "mode": "fill", "zoom": 1.2, "panX": 0.5, "panY": 0 }, "look": "warm", "muted": false, "transitionIn": { "kind": "cut" } },
+    { "id": "c2", "mediaId": "v2", "in": 0, "out": 5, "framing": { "mode": "fit", "background": "blur" }, "look": "original", "muted": true, "transitionIn": { "kind": "dissolve", "duration": 1 } }
+  ],
+  "texts": [{ "id": "t1", "clipId": "c1", "offset": 0, "duration": 3, "text": "Beach day!", "style": "bold", "position": "top" }],
+  "captions": { "enabled": true, "style": "boxed" },
+  "music": { "mediaId": "m1", "level": "quiet", "duckUnderClips": true, "loop": false }
+}

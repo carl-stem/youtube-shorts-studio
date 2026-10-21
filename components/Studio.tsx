@@ -7,16 +7,16 @@ import {
   renderShortsFrame, computeSpectrumFromAnalyser,
   updateBlurredBackground, createDefaultCoverImage,
 } from '../lib/canvasRenderer';
-import { getSupportedMimeType } from '../lib/mediaCodec';
+import { SSR_CODEC_INFO, getSupportedMimeType } from '../lib/mediaCodec';
+import type { CodecInfo } from '../lib/mediaCodec';
 import { parseSRT } from '../lib/srtParser';
 import { serializeProject, downloadProject, loadProjectFromFile } from '../lib/projectSerializer';
 import { useToast } from '../hooks/useToast';
 import { buildAlbumQueue } from '../lib/audioAlbum';
 import { listZipMedia, extractZipMedia } from '../lib/videoAssets';
 import type { ZipMediaCandidate } from '../lib/videoAssets';
-import type { AlbumTrackFile } from '../types';
+import type { AccountStatus, AlbumTrackFile, ProjectActions } from '../types';
 
-import Header from './Header';
 import MediaUploader from './MediaUploader';
 import TrackSettings from './TrackSettings';
 import VisualStylePanel from './VisualStylePanel';
@@ -25,7 +25,6 @@ import ConsoleLog from './ConsoleLog';
 import CanvasPreview from './CanvasPreview';
 import StepperNav from './StepperNav';
 import ExportPanel from './ExportPanel';
-import SocialShare from './SocialShare';
 import ToastContainer from './Toast';
 import SpotifySearch from './SpotifySearch';
 
@@ -51,7 +50,13 @@ function timestamp() {
 
 // ─── component ───────────────────────────────────────────────────────────────
 
-export default function Studio() {
+interface StudioProps {
+  accounts: AccountStatus | null;
+  /** Registers Open/Save for the shared header; called with null on unmount. */
+  onProjectActions?: (actions: ProjectActions | null) => void;
+}
+
+export default function Studio({ accounts, onProjectActions }: StudioProps) {
   // ── asset state (triggers UI updates) ──
   const [audioFile, setAudioFile] = useState<{ name: string; meta: string }>({
     name: 'Choose .WAV or Audio File', meta: 'Click or drag & drop audio',
@@ -125,10 +130,9 @@ export default function Studio() {
   const vizRef             = useRef<VizConfig>(DEFAULT_VIZ);
   const metaRef            = useRef<TrackMeta>(DEFAULT_META);
 
-  // Codec
-  const detectedFormat = useRef(
-    typeof window !== 'undefined' ? getSupportedMimeType() : { mime: '', ext: 'webm', label: 'webm' },
-  ).current;
+  // Codec: detected after mount so the first client render matches the server render.
+  const [detectedFormat, setDetectedFormat] = useState<CodecInfo>(SSR_CODEC_INFO);
+  useEffect(() => { setDetectedFormat(getSupportedMimeType()); }, []);
 
   // ── keep mirror refs in sync ──
   useEffect(() => { vizRef.current = vizConfig; }, [vizConfig]);
@@ -161,6 +165,7 @@ export default function Studio() {
     createDefaultCoverImage().then((img) => {
       coverRef.current = img;
       updateBlurredBackground(bg, img);
+      requestIdleFrame();
     });
 
     // Feature-detect export capabilities
@@ -173,53 +178,79 @@ export default function Studio() {
   }, []);
 
   // ── animation loop ──
-  const loop = useCallback(() => {
+  // Draws one frame from refs. The time readout only re-renders React when its text changes.
+  const lastTimeStrRef = useRef('');
+  const drawFrame = useCallback(() => {
     const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (ctx && !isRenderingRef.current) {
-        let elapsed = 0;
-        let dur = metaRef.current.clipDuration;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx || isRenderingRef.current) return;
+    let elapsed = 0;
+    let dur = metaRef.current.clipDuration;
 
-        if (isPlayingRef.current && audioCtxRef.current) {
-          elapsed = audioCtxRef.current.currentTime - previewStartRef.current;
-          if (elapsed >= previewDurRef.current) stopPreviewInternal();
-          dur = previewDurRef.current;
-        }
-
-        const { spectrum, bass } = computeSpectrumFromAnalyser(analyserRef.current, smoothedSpecRef.current);
-        const ts = renderShortsFrame(ctx, elapsed, dur, spectrum, bass, {
-          blurredBgCanvas: blurredBgRef.current,
-          coverImage: coverRef.current,
-          vizConfig: vizRef.current,
-          srtCues: srtCuesRef.current,
-          segmentOffset: segOffsetRef.current,
-          titleText: metaRef.current.title,
-          artistText: metaRef.current.artist,
-        });
-        setPreviewTimeStr(ts);
-      }
+    if (isPlayingRef.current && audioCtxRef.current) {
+      elapsed = audioCtxRef.current.currentTime - previewStartRef.current;
+      if (elapsed >= previewDurRef.current) stopPreviewInternal();
+      dur = previewDurRef.current;
     }
-    animFrameRef.current = requestAnimationFrame(loop);
+
+    const { spectrum, bass } = computeSpectrumFromAnalyser(analyserRef.current, smoothedSpecRef.current);
+    const ts = renderShortsFrame(ctx, elapsed, dur, spectrum, bass, {
+      blurredBgCanvas: blurredBgRef.current,
+      coverImage: coverRef.current,
+      vizConfig: vizRef.current,
+      srtCues: srtCuesRef.current,
+      segmentOffset: segOffsetRef.current,
+      titleText: metaRef.current.title,
+      artistText: metaRef.current.artist,
+    });
+    if (ts !== lastTimeStrRef.current) {
+      lastTimeStrRef.current = ts;
+      setPreviewTimeStr(ts);
+    }
   }, []); // empty deps – reads only refs
 
+  // Continuous loop only while previewing; it stops itself once playback ends.
+  const loop = useCallback(() => {
+    drawFrame();
+    animFrameRef.current = isPlayingRef.current ? requestAnimationFrame(loop) : 0;
+  }, [drawFrame]);
+
+  // Single frame for the paused/stopped preview. The idle spectrum is a smoothed wave, so it is
+  // settled first; otherwise a frame drawn right after playback would freeze bars mid-decay.
+  const requestIdleFrame = useCallback(() => {
+    if (isPlayingRef.current) return;
+    cancelAnimationFrame(animFrameRef.current);
+    animFrameRef.current = requestAnimationFrame(() => {
+      animFrameRef.current = 0;
+      if (isPlayingRef.current) return;
+      for (let i = 0; i < 20; i++) computeSpectrumFromAnalyser(null, smoothedSpecRef.current);
+      drawFrame();
+    });
+  }, [drawFrame]);
+
   useEffect(() => {
-    animFrameRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animFrameRef.current);
-  }, [loop]);
+    if (isPreviewPlaying) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = requestAnimationFrame(loop);
+    } else if (!isRendering) {
+      requestIdleFrame();
+    }
+  }, [isPreviewPlaying, isRendering, vizConfig, trackMeta, imageFile, srtFile, audioFile, audioDuration, loop, requestIdleFrame]);
+
+  useEffect(() => () => cancelAnimationFrame(animFrameRef.current), []);
 
   // ── pause animation loop when tab is hidden to save battery ──
   useEffect(() => {
     const onVisibility = () => {
-      if (document.hidden) {
-        cancelAnimationFrame(animFrameRef.current);
-      } else {
-        animFrameRef.current = requestAnimationFrame(loop);
-      }
+      cancelAnimationFrame(animFrameRef.current);
+      if (document.hidden) return;
+      if (isPlayingRef.current) animFrameRef.current = requestAnimationFrame(loop);
+      else requestIdleFrame();
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [loop]);
+  }, [loop, requestIdleFrame]);
 
   // ── preview ──
   const stopPreviewInternal = useCallback(() => {
@@ -449,6 +480,21 @@ export default function Studio() {
     projectFileInputRef.current?.click();
   }, []);
 
+  // The header lives in app/page.tsx; hand it stable callbacks that always call the latest handlers.
+  const saveProjectRef = useRef(handleSaveProject);
+  const loadProjectRef = useRef(handleLoadProject);
+  useEffect(() => { saveProjectRef.current = handleSaveProject; }, [handleSaveProject]);
+  useEffect(() => { loadProjectRef.current = handleLoadProject; }, [handleLoadProject]);
+  useEffect(() => {
+    if (!onProjectActions) return;
+    onProjectActions({
+      onSave: () => saveProjectRef.current(),
+      onLoad: () => loadProjectRef.current(),
+      codecLabel: `Export: .${detectedFormat.ext.toUpperCase()}`,
+    });
+    return () => onProjectActions(null);
+  }, [onProjectActions, detectedFormat]);
+
   const handleProjectFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -603,7 +649,7 @@ export default function Studio() {
           const blob = new Blob(chunks, { type: detectedFormat.mime || 'video/webm' });
           if (!blob.size) { toast('Render failed: browser returned an empty file.', 'error'); resolve(); return; }
           const url  = URL.createObjectURL(blob);
-          setDownloads((prev) => [...prev, { filename: outFile, url, sizeBytes: blob.size, durationSeconds: segment.duration }]);
+          setDownloads((prev) => [...prev, { filename: outFile, url, sizeBytes: blob.size, durationSeconds: segment.duration, width: 1080, height: 1920 }]);
           // Auto-trigger browser download
           const a = document.createElement('a');
           a.href = url; a.download = outFile;
@@ -692,13 +738,6 @@ export default function Studio() {
         accept=".json,.shortsproject.json"
         className="hidden"
         onChange={handleProjectFileSelected}
-      />
-
-      <Header
-        showBrand={false}
-        codecLabel={`Export: .${detectedFormat.ext.toUpperCase()}`}
-        onSaveProject={handleSaveProject}
-        onLoadProject={handleLoadProject}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
@@ -802,8 +841,8 @@ export default function Studio() {
                 downloads={downloads}
                 onRenderAll={() => renderBatch(segments)}
                 onStop={() => { stopFlagRef.current = true; }}
+                accounts={accounts}
               />
-              <SocialShare downloads={downloads} />
               <ConsoleLog logs={logs} onClear={() => setLogs([])} />
               <StepFooter onBack={() => setCurrentStep(3)} />
             </div>

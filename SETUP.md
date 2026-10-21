@@ -1,6 +1,6 @@
 # Shorts Studio — Setup Guide
 
-> **1080×1920 vertical video generator** with one-click YouTube & TikTok publishing, Spotify metadata fill, Whisper auto-captions, and a live audio spectrum visualizer.
+> **1080×1920 vertical video generator** with Spotify metadata fill, Whisper auto-captions, and a live audio spectrum visualizer. Publish finished exports to YouTube (resumable upload with schedule, category and thumbnail) or to your TikTok inbox, and see recent YouTube Shorts stats.
 
 ---
 
@@ -35,13 +35,14 @@ The app works immediately without any API keys. File export, project save/load, 
 ## 2. Environment Variables Reference
 
 Add these in **Vercel Dashboard → your project → Settings → Environment Variables**.  
-For local dev, copy to a `.env.local` file (never commit this file).
+For local dev, copy `.env.example` to `.env.local` (never commit `.env.local`).
 
 | Variable | Required For | Where to Get It |
 |----------|-------------|-----------------|
 | `NEXTAUTH_URL` | All OAuth callbacks | Your Vercel domain: `https://youtube-shorts-studio.vercel.app` |
-| `KV_REST_API_URL` | Token storage (YouTube/TikTok auth) | Vercel Dashboard → Storage → KV |
+| `KV_REST_API_URL` | Token storage (YouTube/TikTok auth); rate limits for Spotify/Whisper in production | Vercel Dashboard → Storage → KV |
 | `KV_REST_API_TOKEN` | Token storage | Vercel Dashboard → Storage → KV |
+| `TOKEN_ENC_KEY` | Encrypting OAuth tokens at rest (required in production for YouTube/TikTok connect) | `openssl rand -base64 32` |
 | `GOOGLE_CLIENT_ID` | YouTube OAuth | [console.cloud.google.com](https://console.cloud.google.com) |
 | `GOOGLE_CLIENT_SECRET` | YouTube OAuth | [console.cloud.google.com](https://console.cloud.google.com) |
 | `TIKTOK_CLIENT_KEY` | TikTok OAuth | [developers.tiktok.com](https://developers.tiktok.com) |
@@ -49,6 +50,7 @@ For local dev, copy to a `.env.local` file (never commit this file).
 | `SPOTIFY_CLIENT_ID` | Spotify metadata search | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) |
 | `SPOTIFY_CLIENT_SECRET` | Spotify metadata search | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) |
 | `OPENAI_API_KEY` | Whisper auto-captions | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| `WHISPER_DAILY_MINUTES` | Optional free auto-caption minutes per user per UTC day (default 60) | Any non-negative number |
 
 **Example `.env.local`:**
 ```env
@@ -68,7 +70,7 @@ OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## 3. Vercel KV Setup
 
-Vercel KV is a serverless Redis store used to securely persist OAuth tokens. Free tier: **30,000 requests/day**.
+Vercel KV is a serverless Redis store used to persist OAuth session state and tokens. Tokens are encrypted at rest with AES-256-GCM using `TOKEN_ENC_KEY` (generate with `openssl rand -base64 32`). In production, YouTube/TikTok connect is refused with `token_encryption_not_configured` if the key is missing; in development tokens are stored unencrypted with a console warning. Tokens saved before encryption was enabled are re-saved encrypted the next time they are read. Free tier: **30,000 requests/day**.
 
 **Steps:**
 1. Go to **[vercel.com/dashboard](https://vercel.com/dashboard)** → your project
@@ -78,7 +80,7 @@ Vercel KV is a serverless Redis store used to securely persist OAuth tokens. Fre
 5. Vercel automatically adds `KV_REST_API_URL` and `KV_REST_API_TOKEN` to your project's env vars
 6. **Pull to local:** `npx vercel env pull .env.local` (requires `npx vercel link` first)
 
-> **No KV?** The app still works — Spotify search, Whisper captions, and local export function without KV. Only YouTube/TikTok OAuth tokens require storage.
+> **No KV?** Local editing and export work without KV. In local development, Spotify search and Whisper captions also work without KV (rate limits are skipped). In production (`NODE_ENV=production`) they require KV for rate limiting and refuse with `503` (`rate_limit_unavailable`) when it is missing. YouTube/TikTok OAuth tokens always require storage.
 
 ---
 
@@ -170,7 +172,7 @@ TIKTOK_CLIENT_KEY    = awxxxxxxxxxxxxxxxx
 TIKTOK_CLIENT_SECRET = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-> **Privacy levels:** The app defaults to `PUBLIC_TO_EVERYONE`. Change per clip in the publish dialog.
+> **Inbox only:** Shorts Studio sends videos to the creator's TikTok inbox as drafts (`video.upload` scope). Caption and privacy are chosen in the TikTok app when posting. Direct Post is not used.
 
 ---
 
@@ -221,6 +223,8 @@ OPENAI_API_KEY = sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 - Max file size: **24 MB** per request
 - For audio longer than ~25 minutes at standard bitrates, trim the audio before captioning
 - Returns SRT format that's auto-imported into the caption track
+- Rate limited to 10 requests/minute per user (signed-in session, otherwise IP); Spotify search is limited to 30/minute
+- Free daily allowance: `WHISPER_DAILY_MINUTES` (default 60) of audio per user per UTC day; once used up the route returns `429` with code `whisper_daily_cap_reached`
 
 ---
 
@@ -282,7 +286,7 @@ Or trigger a redeploy from the Vercel Dashboard.
 |---------|:-------:|:-------:|:------:|:-----------:|:-----------:|
 | Canvas preview (60fps) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Local export — MediaRecorder | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Fast export — WebCodecs (H.264) | ✅¹ | ✅ | ✅ | ✅ | ✅ |
+| Fast export — WebCodecs (H.264) | planned¹ | planned | planned | planned | planned |
 | Project save / load (.json) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Editable segments | ✅ | ✅ | ✅ | ✅ | ✅ |
 | SRT subtitle upload | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -291,13 +295,30 @@ Or trigger a redeploy from the Vercel Dashboard.
 | Spotify metadata fill | ❌ | ✅ | ✅ | ✅ | ✅ |
 | Whisper auto-captions | ❌ | ❌ | ✅ | ✅ | ✅ |
 | YouTube OAuth connect | ❌ | ❌ | ❌ | ✅ | ✅ |
-| One-click YouTube upload | ❌ | ❌ | ❌ | ✅ | ✅ |
+| YouTube upload (resumable, pause/resume) | ❌ | ❌ | ❌ | ✅ | ✅ |
 | Scheduled YouTube publish | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Custom YouTube thumbnail | ❌ | ❌ | ❌ | ✅² | ✅² |
 | YouTube analytics dashboard | ❌ | ❌ | ❌ | ✅ | ✅ |
 | TikTok OAuth connect | ❌ | ❌ | ❌ | ❌ | ✅ |
-| One-click TikTok upload | ❌ | ❌ | ❌ | ❌ | ✅ |
+| TikTok inbox upload | ❌ | ❌ | ❌ | ❌ | ✅³ |
 
-¹ WebCodecs requires Chrome 94+, Edge 94+, or Safari 17.2+. Falls back to MediaRecorder automatically on unsupported browsers.
+¹ Not wired up yet: all exports currently use MediaRecorder (real-time). Planned, see [docs/editor-plan.md](docs/editor-plan.md).
+
+² YouTube only allows custom thumbnails on verified channels ([youtube.com/verify](https://www.youtube.com/verify)); otherwise the upload succeeds and the app says the thumbnail was not set.
+
+³ Videos over 4 MB require the browser to send chunks directly to TikTok; see [Publishing: how uploads travel](#publishing-how-uploads-travel).
+
+---
+
+## Publishing: how uploads travel
+
+Vercel functions accept request bodies of only ~4.5 MB, so video files are never sent to the app's server in one piece.
+
+**YouTube.** `POST /api/upload/youtube/session` validates the metadata and creates a resumable upload session with Google (sending the app's `Origin`). The browser then `PUT`s 8 MiB chunks straight to the Google upload URL. If the browser blocks the first direct chunk (CORS), it switches to `PUT /api/upload/youtube/chunk`, which forwards 4 MiB chunks to that one session's upload URL and nothing else. After any network error the browser asks Google how many bytes it has and continues from there. An unfinished upload is remembered in the browser for up to a week: publish the same export again to resume. The progress bar says **"Sending straight to YouTube"** or **"Sending through Shorts Studio"** so you can tell which path was used.
+
+**TikTok.** `POST /api/upload/tiktok/init` starts an inbox `FILE_UPLOAD` and returns TikTok's upload URL (valid for one hour). TikTok requires chunks of at least 5 MB, more than a Vercel function can receive, so the browser `PUT`s the chunks straight to `*.tiktokapis.com`. Only a whole video of 4 MB or less can fall back to `PUT /api/upload/tiktok/chunk` if the browser blocks the direct path; larger videos then show an error asking you to upload in the TikTok app.
+
+Required production env vars are unchanged (KV, `TOKEN_ENC_KEY`, Google/TikTok OAuth). Upload routes are rate limited per session and, like Spotify/Whisper, return `503 rate_limit_unavailable` in production without KV.
 
 ---
 
@@ -308,17 +329,17 @@ Shorts Studio (Next.js 14, App Router)
 │
 ├── Client (browser)
 │   ├── Canvas renderer    — 1080×1920 @60fps via requestAnimationFrame
-│   ├── WebCodecs encoder  — Fast H.264 encoding (mp4-muxer)
-│   ├── MediaRecorder      — Fallback real-time recording
+│   ├── WebCodecs encoder  — Fast H.264 encoding (planned; not used yet)
+│   ├── MediaRecorder      — Real-time recording (current export path)
 │   └── Web Audio API      — Decoding, playback, FFT spectrum
 │
 └── Server (Vercel Edge/Node)
     ├── /api/auth/*        — OAuth initiation + callbacks
-    ├── /api/upload/*      — YouTube + TikTok upload proxies
+    ├── /api/upload/*      — Upload sessions (metadata only), small chunk relays, status, thumbnails
     ├── /api/analytics/*   — YouTube Analytics API
     ├── /api/spotify/*     — Spotify search proxy
     ├── /api/whisper       — OpenAI Whisper transcription
-    └── Vercel KV          — Encrypted OAuth token storage
+    └── Vercel KV          — OAuth token storage (AES-256-GCM encrypted)
 ```
 
 ---

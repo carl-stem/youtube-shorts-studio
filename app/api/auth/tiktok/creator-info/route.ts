@@ -14,7 +14,8 @@ export async function GET(req: NextRequest) {
     });
     const payload = await response.json();
     if (!response.ok || payload.error?.code !== 'ok' || !payload.data) {
-      return NextResponse.json({ error: payload.error?.message || 'Could not load TikTok creator settings' }, { status: 502 });
+      console.error('[tiktok/creator-info] provider error', response.status, payload.error);
+      return NextResponse.json({ error: 'Could not load TikTok creator settings', code: 'provider_error' }, { status: 502 });
     }
     return NextResponse.json({
       username: payload.data.creator_username,
