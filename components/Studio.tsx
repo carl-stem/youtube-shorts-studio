@@ -26,7 +26,6 @@ import ConsoleLog from './ConsoleLog';
 import CanvasPreview from './CanvasPreview';
 import StepperNav from './StepperNav';
 import ExportPanel from './ExportPanel';
-import SocialShare from './SocialShare';
 import ToastContainer from './Toast';
 import SpotifySearch from './SpotifySearch';
 
@@ -803,7 +802,6 @@ export default function Studio() {
                 onRenderAll={() => renderBatch(segments)}
                 onStop={() => { stopFlagRef.current = true; }}
               />
-              <SocialShare downloads={downloads} />
               <ConsoleLog logs={logs} onClear={() => setLogs([])} />
               <StepFooter onBack={() => setCurrentStep(3)} />
             </div>
