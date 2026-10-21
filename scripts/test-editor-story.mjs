@@ -122,3 +122,12 @@ test('replacing or removing music drops the old song from the project', () => {
   assert.equal(project.media.m2, undefined);
   assert.equal(removeMedia(project, 'a').story.length, 1);
 });
+
+test('text wraps by word to fit the safe width and keeps line breaks', async () => {
+  const { wrapText } = await import('../lib/render/text.ts');
+  const measure = (value) => value.length * 10;
+  assert.deepEqual(wrapText(measure, 'one two three four', 90), ['one two', 'three', 'four']);
+  assert.deepEqual(wrapText(measure, 'line one\nline two', 1000), ['line one', 'line two']);
+  assert.deepEqual(wrapText(measure, 'supercalifragilistic', 50), ['supercalifragilistic']);
+  assert.deepEqual(wrapText(measure, '   ', 50), []);
+});

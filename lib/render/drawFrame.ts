@@ -1,8 +1,11 @@
-// Draws one editor frame. Preview and export call the same function, so what
-// people see is what they export.
+// Draws one editor frame from a FrameDescription. Preview and export call the
+// same function, so what people see is what they export.
 
 import type { VideoFilter } from '../../types';
-import { framingRect, type Framing } from './layout';
+import type { Id } from '../editor/model';
+import type { FrameDescription } from './compose';
+import { framingRect, type Insets } from './layout';
+import { drawTextBlock } from './text';
 
 export const LOOK_FILTERS: Record<VideoFilter, string> = {
   original: 'none',
@@ -18,32 +21,35 @@ export const LOOK_LABELS: Record<VideoFilter, string> = {
 
 const BACKDROP = '#080a12';
 
-export interface FrameSource {
-  video: HTMLVideoElement;
-  framing: Framing;
-  look: VideoFilter;
-}
+const isReady = (video: HTMLVideoElement | null): video is HTMLVideoElement =>
+  !!video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0;
 
-/** Paints the frame; with no ready source it paints the empty backdrop. */
-export function drawEditorFrame(ctx: CanvasRenderingContext2D, source: FrameSource | null) {
+/** Paints the frame; layers whose video is not ready yet are skipped. */
+export function drawComposed(ctx: CanvasRenderingContext2D, frame: FrameDescription, videoFor: (clipId: Id) => HTMLVideoElement | null, safe: Insets) {
   const { width, height } = ctx.canvas;
   ctx.save();
   ctx.filter = 'none';
+  ctx.globalAlpha = 1;
   ctx.fillStyle = BACKDROP;
   ctx.fillRect(0, 0, width, height);
-  const video = source?.video;
-  if (!source || !video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth || !video.videoHeight) {
-    ctx.restore();
-    return;
+  for (const layer of frame.layers) {
+    const video = videoFor(layer.clip.id);
+    if (!isReady(video) || layer.opacity <= 0) continue;
+    const look = LOOK_FILTERS[layer.clip.look] ?? 'none';
+    ctx.globalAlpha = layer.opacity;
+    const { framing } = layer.clip;
+    if (framing.mode === 'fit' && framing.background === 'blur') {
+      const cover = framingRect(video.videoWidth, video.videoHeight, width, height, { mode: 'fill', zoom: 1.1, panX: 0, panY: 0 });
+      ctx.filter = `${look === 'none' ? '' : `${look} `}blur(40px) brightness(0.6)`;
+      ctx.drawImage(video, cover.x, cover.y, cover.width, cover.height);
+    }
+    const rect = framingRect(video.videoWidth, video.videoHeight, width, height, framing);
+    ctx.filter = look;
+    ctx.drawImage(video, rect.x, rect.y, rect.width, rect.height);
   }
-  const look = LOOK_FILTERS[source.look] ?? 'none';
-  if (source.framing.mode === 'fit' && source.framing.background === 'blur') {
-    const cover = framingRect(video.videoWidth, video.videoHeight, width, height, { mode: 'fill', zoom: 1.1, panX: 0, panY: 0 });
-    ctx.filter = `${look === 'none' ? '' : `${look} `}blur(40px) brightness(0.6)`;
-    ctx.drawImage(video, cover.x, cover.y, cover.width, cover.height);
-  }
-  const rect = framingRect(video.videoWidth, video.videoHeight, width, height, source.framing);
-  ctx.filter = look;
-  ctx.drawImage(video, rect.x, rect.y, rect.width, rect.height);
+  ctx.filter = 'none';
+  ctx.globalAlpha = 1;
+  for (const item of frame.texts) drawTextBlock(ctx, { text: item.text, style: item.style, position: item.position, role: 'text' }, safe);
+  if (frame.caption) drawTextBlock(ctx, { text: frame.caption.text, style: frame.caption.style, position: 'bottom', role: 'caption' }, safe);
   ctx.restore();
 }

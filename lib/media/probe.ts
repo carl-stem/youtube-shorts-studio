@@ -47,3 +47,23 @@ export function grabFrame(url: string, time: number, width = 192): Promise<strin
     video.src = url;
   });
 }
+
+export function isAudioFile(file: File) {
+  return file.type.startsWith('audio/') || /\.(mp3|m4a|aac|wav|ogg|oga|flac)$/i.test(file.name);
+}
+
+export function probeAudio(url: string, name: string): Promise<{ duration: number }> {
+  return new Promise((resolve, reject) => {
+    const probe = document.createElement('audio');
+    probe.preload = 'metadata';
+    const cleanup = () => { probe.removeAttribute('src'); probe.load(); };
+    probe.onloadedmetadata = () => {
+      const { duration } = probe;
+      cleanup();
+      if (!Number.isFinite(duration) || duration < 0.5) reject(new Error(`${name} has no readable audio.`));
+      else resolve({ duration });
+    };
+    probe.onerror = () => { cleanup(); reject(new Error(`${name} could not be read by this browser. Try an MP3 or M4A file.`)); };
+    probe.src = url;
+  });
+}
