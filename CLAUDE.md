@@ -2,7 +2,7 @@
 
 ## Working rules
 
-- **Never do the work yourself — always dispatch a sub-agent.** For every task (research, code changes, debugging, reviews, running commands), delegate the work to a sub-agent via the Agent tool rather than performing it directly. Your role is to plan, dispatch, and relay results to the user.
+- **Delegate substantial work to sub-agents.** Dispatch a sub-agent via the Agent tool for multi-file code changes, feature work, broad research or codebase exploration, debugging, and reviews. Handle small, quick tasks directly: single-file or doc edits, reading a few files, git operations (status, commit, push), and running a single check. When in doubt, delegate.
 
 ## Strict Execution Guardrails
 - **Grounding over Guessing:** Never guess API endpoints, library functions, or database schemas. If unsure, grep the codebase or ask for clarification before writing code.
