@@ -9,7 +9,7 @@ import { StepCard, primaryButton } from './StepCard';
 export default function AddMedia({ onNext }: { onNext: () => void }) {
   const { project, format, apply, addFiles, importing } = useEditor();
   const pickerRef = useRef<HTMLInputElement>(null);
-  const media = Object.values(project.media);
+  const media = Object.values(project.media).flatMap((item) => (item.kind === 'video' ? [item] : []));
   const clipCap = defaultClipCap(format);
 
   return (

@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { Id, MediaRef, Project } from '../../lib/editor/model';
+import type { Id, Project, VideoMedia } from '../../lib/editor/model';
 import { createProject, makeId } from '../../lib/editor/model';
 import { addMedia } from '../../lib/editor/ops';
 import { createHistory, historyReducer, redoLabel, undoLabel, type History } from '../../lib/editor/history';
@@ -80,7 +80,7 @@ export function EditorProvider({ formatId, notify, children }: { formatId: Aspec
     const room = MAX_MEDIA - Object.keys(projectRef.current.media).length;
     if (videos.length > room) problems.push(`A project can hold up to ${MAX_MEDIA} videos.`);
     setImporting(true);
-    const added: MediaRef[] = [];
+    const added: VideoMedia[] = [];
     for (const file of videos.slice(0, Math.max(0, room))) {
       const url = URL.createObjectURL(file);
       try {

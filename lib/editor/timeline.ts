@@ -6,19 +6,41 @@ export function clipLength(clip: StoryClip): Seconds {
   return Math.max(0, clip.out - clip.in);
 }
 
+/**
+ * Seconds clip `index` overlaps the clip before it. Only dissolves overlap, and
+ * never by more than half of either clip, so every clip keeps a moment of its own.
+ */
+export function overlapBefore(project: Project, index: number): Seconds {
+  const clip = project.story[index];
+  const previous = project.story[index - 1];
+  if (!clip || !previous || clip.transitionIn.kind !== 'dissolve') return 0;
+  return Math.min(clip.transitionIn.duration, clipLength(clip) / 2, clipLength(previous) / 2);
+}
+
+/** Half-length of a fade at the start of clip `index` (fade out, then fade in). */
+export function fadeHalfBefore(project: Project, index: number): Seconds {
+  const clip = project.story[index];
+  const previous = project.story[index - 1];
+  if (!clip || !previous || clip.transitionIn.kind !== 'fade') return 0;
+  return Math.min(clip.transitionIn.duration / 2, clipLength(clip) / 2, clipLength(previous) / 2);
+}
+
 /** Timeline start time of each clip, in story order. */
 export function clipStarts(project: Project): Seconds[] {
   const starts: Seconds[] = [];
   let t = 0;
-  for (const clip of project.story) {
+  project.story.forEach((clip, index) => {
+    if (index > 0) t -= overlapBefore(project, index);
     starts.push(t);
     t += clipLength(clip);
-  }
+  });
   return starts;
 }
 
 export function duration(project: Project): Seconds {
-  return project.story.reduce((total, clip) => total + clipLength(clip), 0);
+  const { story } = project;
+  if (!story.length) return 0;
+  return clipStarts(project)[story.length - 1] + clipLength(story[story.length - 1]);
 }
 
 export interface Located {
@@ -31,23 +53,23 @@ export interface Located {
 }
 
 /**
- * The clip showing at timeline time t. A time exactly on a cut belongs to the
+ * The clip in charge at timeline time t: the latest one that has started. During
+ * a dissolve that is the incoming clip. A time exactly on a cut belongs to the
  * clip that starts there; times at or past the end resolve to the last frame.
  */
 export function locate(project: Project, t: Seconds): Located | null {
   const { story } = project;
   if (!story.length) return null;
-  const time = Math.max(0, t);
-  let clipStart = 0;
-  for (let index = 0; index < story.length; index += 1) {
-    const clip = story[index];
-    const length = clipLength(clip);
-    if (time < clipStart + length) return { index, clip, clipStart, sourceTime: clip.in + (time - clipStart) };
-    clipStart += length;
+  const starts = clipStarts(project);
+  const end = starts[story.length - 1] + clipLength(story[story.length - 1]);
+  if (t >= end) {
+    const index = story.length - 1;
+    return { index, clip: story[index], clipStart: starts[index], sourceTime: story[index].out };
   }
-  const index = story.length - 1;
-  const clip = story[index];
-  return { index, clip, clipStart: clipStart - clipLength(clip), sourceTime: clip.out };
+  const time = Math.max(0, t);
+  let index = 0;
+  while (index + 1 < story.length && starts[index + 1] <= time) index += 1;
+  return { index, clip: story[index], clipStart: starts[index], sourceTime: story[index].in + (time - starts[index]) };
 }
 
 /** m:ss, or h:mm:ss from one hour. */
