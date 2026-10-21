@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTikTokTokens, getValidTikTokToken } from '../../../../lib/tokenManager';
 import { kvSetWithExpiry } from '../../../../lib/kv';
+import { isUploadableVideoMime, normalizeVideoMime } from '../../../../lib/videoMime';
 
 export const maxDuration = 300;
 
@@ -18,8 +19,7 @@ export async function POST(req: NextRequest) {
     const caption   = ((form.get('caption') as string) || '').slice(0, 2200);
 
     if (!videoFile || videoFile.size === 0) return NextResponse.json({ error: 'A non-empty video file is required' }, { status: 400 });
-    const contentType = videoFile.type || 'video/mp4';
-    if (!['video/mp4', 'video/webm', 'video/quicktime'].includes(contentType)) return NextResponse.json({ error: 'Use an MP4, WebM, or MOV video for TikTok upload.' }, { status: 415 });
+    if (!isUploadableVideoMime(videoFile.type)) return NextResponse.json({ error: 'Use an MP4, WebM, or MOV video for TikTok upload.' }, { status: 415 });
     if (videoFile.size > 64 * 1024 * 1024) return NextResponse.json({ error: 'Videos over 64 MB require multi-part transfer, which this upload flow does not support yet.' }, { status: 413 });
     const tokenInfo = await getTikTokTokens(sessionId);
     const grantedScopes = new Set(tokenInfo?.scope?.split(/[ ,]+/) ?? []);
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     const uploadRes  = await fetch(parsedUploadUrl, {
       method: 'PUT',
       headers: {
-        'Content-Type':   contentType,
+        'Content-Type':   normalizeVideoMime(videoFile.type),
         'Content-Length': videoFile.size.toString(),
         'Content-Range':  `bytes 0-${videoFile.size - 1}/${videoFile.size}`,
       },
