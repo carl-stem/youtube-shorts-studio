@@ -15,7 +15,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // The inline theme script below adds/removes `dark` on <html> before React hydrates,
+    // so the server-rendered class intentionally differs; this only silences <html> itself.
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: `
           (function(){
