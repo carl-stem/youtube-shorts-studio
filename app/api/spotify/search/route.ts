@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { applyRateLimit, rejectCrossOrigin } from '../../../../lib/apiGuard';
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -24,8 +25,12 @@ async function getSpotifyToken(): Promise<string> {
 }
 
 export async function GET(req: NextRequest) {
+  const crossOrigin = rejectCrossOrigin(req);
+  if (crossOrigin) return crossOrigin;
   const q = req.nextUrl.searchParams.get('q');
   if (!q) return NextResponse.json({ error: 'Missing q param' }, { status: 400 });
+  const limited = await applyRateLimit(req, 'spotify-search', 30, 60);
+  if ('response' in limited) return limited.response;
 
   try {
     const token = await getSpotifyToken();

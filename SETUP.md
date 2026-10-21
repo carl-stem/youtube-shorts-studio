@@ -40,7 +40,7 @@ For local dev, copy `.env.example` to `.env.local` (never commit `.env.local`).
 | Variable | Required For | Where to Get It |
 |----------|-------------|-----------------|
 | `NEXTAUTH_URL` | All OAuth callbacks | Your Vercel domain: `https://youtube-shorts-studio.vercel.app` |
-| `KV_REST_API_URL` | Token storage (YouTube/TikTok auth) | Vercel Dashboard → Storage → KV |
+| `KV_REST_API_URL` | Token storage (YouTube/TikTok auth); rate limits for Spotify/Whisper in production | Vercel Dashboard → Storage → KV |
 | `KV_REST_API_TOKEN` | Token storage | Vercel Dashboard → Storage → KV |
 | `GOOGLE_CLIENT_ID` | YouTube OAuth | [console.cloud.google.com](https://console.cloud.google.com) |
 | `GOOGLE_CLIENT_SECRET` | YouTube OAuth | [console.cloud.google.com](https://console.cloud.google.com) |
@@ -49,6 +49,7 @@ For local dev, copy `.env.example` to `.env.local` (never commit `.env.local`).
 | `SPOTIFY_CLIENT_ID` | Spotify metadata search | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) |
 | `SPOTIFY_CLIENT_SECRET` | Spotify metadata search | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) |
 | `OPENAI_API_KEY` | Whisper auto-captions | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| `WHISPER_DAILY_MINUTES` | Optional free auto-caption minutes per user per UTC day (default 60) | Any non-negative number |
 
 **Example `.env.local`:**
 ```env
@@ -78,7 +79,7 @@ Vercel KV is a serverless Redis store used to persist OAuth session state and to
 5. Vercel automatically adds `KV_REST_API_URL` and `KV_REST_API_TOKEN` to your project's env vars
 6. **Pull to local:** `npx vercel env pull .env.local` (requires `npx vercel link` first)
 
-> **No KV?** The app still works — Spotify search, Whisper captions, and local export function without KV. Only YouTube/TikTok OAuth tokens require storage.
+> **No KV?** Local editing and export work without KV. In local development, Spotify search and Whisper captions also work without KV (rate limits are skipped). In production (`NODE_ENV=production`) they require KV for rate limiting and refuse with `503` (`rate_limit_unavailable`) when it is missing. YouTube/TikTok OAuth tokens always require storage.
 
 ---
 
@@ -221,6 +222,8 @@ OPENAI_API_KEY = sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 - Max file size: **24 MB** per request
 - For audio longer than ~25 minutes at standard bitrates, trim the audio before captioning
 - Returns SRT format that's auto-imported into the caption track
+- Rate limited to 10 requests/minute per user (signed-in session, otherwise IP); Spotify search is limited to 30/minute
+- Free daily allowance: `WHISPER_DAILY_MINUTES` (default 60) of audio per user per UTC day; once used up the route returns `429` with code `whisper_daily_cap_reached`
 
 ---
 
