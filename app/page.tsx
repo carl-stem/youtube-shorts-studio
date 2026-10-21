@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Studio from '../components/Studio';
-import VideoStudio from '../components/VideoStudio';
 import Editor from '../components/editor/Editor';
 import Header from '../components/Header';
 import ToastContainer from '../components/Toast';
@@ -11,12 +10,11 @@ import { useToast } from '../hooks/useToast';
 import { authErrorMessage, readAuthRedirect } from '../lib/authErrors';
 import type { AccountStatus, ProjectActions } from '../types';
 
-type CreationMode = 'video' | 'audio' | 'editor';
+type CreationMode = 'video' | 'audio';
 
 const MODES: Array<{ id: CreationMode; label: string }> = [
   { id: 'audio', label: 'Audio' },
   { id: 'video', label: 'Video' },
-  { id: 'editor', label: 'Editor (beta)' },
 ];
 const modeLabel = (id: CreationMode) => MODES.find((entry) => entry.id === id)?.label ?? id;
 
@@ -54,10 +52,8 @@ export default function Home() {
   }, [toast]);
 
   const workflowGuide = mode === 'video'
-    ? 'Add videos → Choose a moment → Make it yours → Review & export'
-    : mode === 'editor'
-      ? 'Add your videos → Put it in order → Make it yours → Review & share'
-      : 'Choose your audio → Style your Short → Edit clips → Preview & export';
+    ? 'Add your videos → Put it in order → Make it yours → Review & share'
+    : 'Choose your audio → Style your Short → Edit clips → Preview & export';
 
   useEffect(() => {
     if (!requestedMode) return;
@@ -104,9 +100,8 @@ export default function Home() {
           </div>
         }
       />
-      {mode === 'video' && <VideoStudio accounts={accounts} />}
+      {mode === 'video' && <Editor accounts={accounts} notify={toast} onOpenVisualizer={() => requestMode('audio')} />}
       {mode === 'audio' && <Studio accounts={accounts} onProjectActions={setProjectActions} />}
-      {mode === 'editor' && <Editor accounts={accounts} notify={toast} onOpenVisualizer={() => requestMode('audio')} />}
 
       {requestedMode && (
         <div
@@ -122,14 +117,16 @@ export default function Home() {
           >
             <h2 id="switch-workflow-title" className="text-lg font-bold">Switch to {modeLabel(requestedMode)}?</h2>
             <p id="switch-workflow-description" className="mt-3 text-sm leading-relaxed text-[var(--text-2)]">
-              Switching workflows will discard your current in-progress edits, imported media, and export list. Files you have already downloaded will remain on your device.
+              {mode === 'video'
+                ? 'Your video project is saved on this device, so you can reopen it later from My projects. Its export list is cleared.'
+                : 'Switching workflows will discard your current in-progress edits, imported media, and export list. Files you have already downloaded will remain on your device.'}
             </p>
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button type="button" autoFocus onClick={() => setRequestedMode(null)} className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-2.5 text-sm font-semibold hover:border-indigo-500/60">
                 Stay here
               </button>
               <button type="button" onClick={confirmModeChange} className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500">
-                Switch and discard
+                {mode === 'video' ? 'Switch' : 'Switch and discard'}
               </button>
             </div>
           </section>
