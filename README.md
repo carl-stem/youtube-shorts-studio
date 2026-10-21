@@ -13,7 +13,8 @@
 | 🎵 **Audio engine** | Web Audio API — decodes WAV/MP3/OGG, fade-in/out, live FFT spectrum |
 | 🎨 **Live canvas** | 1080×1920 @ 60 fps — see every change instantly |
 | ✂️ **Editable segments** | Add, delete, and adjust start/duration per clip — not just auto-sliced |
-| 🎞️ **Editor (beta)** | Join several videos into one Short: trim, cut, reorder, framing presets, looks, text, captions that stay in sync, background music that dips under clip sound, fade and blend transitions, undo/redo |
+| 🎞️ **Video editor** | Join several videos (or a ZIP of them) into one Short: trim, cut, reorder, framing presets with zoom and drag, looks, text, captions that stay in sync, background music that dips under clip sound, fade and blend transitions, undo/redo |
+| 💾 **Projects** | Video projects autosave in the browser, reopen from "My projects", and back up to a `.shortsproject.json` file; moved files are found again with a relink step |
 | 🌈 **5 color themes** | Indigo→Pink, Fire, Ocean, Neon, Gold |
 | 📊 **3 spectrum styles** | Bars, Mirror Bars, Wave Line |
 | 🖼️ **3 backgrounds** | Blurred Art, Dark Gradient, Pure Dark |
@@ -66,13 +67,12 @@ Or click the **Deploy** button above to import directly into Vercel.
 ├── app/                   # Next.js App Router
 │   ├── api/               # Optional server routes (auth, upload, analytics, spotify, whisper)
 │   ├── layout.tsx
-│   ├── page.tsx           # Audio / Video / Editor workflow switch
+│   ├── page.tsx           # Audio / Video workflow switch
 │   ├── manifest.ts
 │   └── globals.css
 ├── components/
 │   ├── Studio.tsx         # Audio Short workflow — state & audio engine
-│   ├── VideoStudio.tsx    # Video Short workflow — clips, trim, export
-│   ├── editor/            # New editor (beta): steps, storyboard, preview
+│   ├── editor/            # Video editor: start screen, steps, storyboard, preview, panels
 │   ├── SegmentEditor.tsx  # Editable clip segments
 │   ├── VisualStylePanel.tsx
 │   ├── MediaUploader.tsx  # Audio + Image + SRT dropzones
@@ -81,7 +81,7 @@ Or click the **Deploy** button above to import directly into Vercel.
 │   ├── Header.tsx
 │   └── ConsoleLog.tsx
 ├── lib/
-│   ├── editor/            # Editor project model, edit operations, timeline, undo history
+│   ├── editor/            # Project model, edit operations, timeline, undo, file format, browser storage
 │   ├── render/            # Formats/framing, frame drawing, sequence player, recorder export
 │   ├── canvasRenderer.ts  # All pure canvas drawing functions
 │   ├── srtParser.ts
