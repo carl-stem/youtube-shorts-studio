@@ -557,7 +557,7 @@ export default function VideoStudio({ accounts }: { accounts: AccountStatus | nu
       const url = URL.createObjectURL(blob);
       ownedDownloadUrlsRef.current.add(url);
       const safeName = (selectedClip.title || selectedAsset.file.name.replace(/\.[^.]+$/, '') || 'short').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '').slice(0, 70) || 'short';
-      const item: DownloadItem = { filename: `${safeName}.${format.ext}`, url, sizeBytes: blob.size, durationSeconds: clipDuration };
+      const item: DownloadItem = { filename: `${safeName}.${format.ext}`, url, sizeBytes: blob.size, durationSeconds: clipDuration, width: OUTPUT_WIDTH, height: OUTPUT_HEIGHT };
       setDownloads((previous) => [...previous, item]);
       setProgress(100);
       setExportStatus(`Export complete · ${format.label}`);

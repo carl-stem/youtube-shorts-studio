@@ -6,38 +6,29 @@ import type { ResumeRecord } from '../lib/publish/resumable';
 import {
   UploadError, findResumableUpload, forgetResumableUpload, resumeYouTubeUpload, uploadToYouTube, type UploadProgress,
 } from '../lib/publish/youtubeUpload';
+import { initialYouTubeForm, isShortsCandidate, toYouTubeDraft, youTubeFormProblem, type YouTubeForm } from '../lib/publish/youtubeDraft';
+import { prepareThumbnail } from '../lib/publish/thumbnail';
+import { DEFAULT_CATEGORY_ID } from '../lib/youtubeMetadata';
 import UploadProgressBar from './publish/UploadProgressBar';
+import YouTubeFields from './publish/YouTubeFields';
+import TikTokFields, { type TikTokCreatorInfo } from './publish/TikTokFields';
+import PublishResult, { type PublishResultState } from './publish/PublishResult';
 
 interface Props {
   item: DownloadItem;
   accounts: AccountStatus | null;
+  /** '10' (Music) from the audio workflow; People & Blogs otherwise. */
+  defaultCategoryId?: string;
 }
 
 type Platform = 'youtube' | 'tiktok';
 type PublishState = 'ready' | 'transferring' | 'processing' | 'processed' | 'awaiting-user' | 'published' | 'failed';
 
-interface TikTokCreatorInfo {
-  username?: string;
-  nickname?: string;
-  privacyOptions: string[];
-  maxVideoDurationSeconds: number;
-}
-
-interface FormState {
-  title: string;
-  description: string;
-  tags: string;
-  privacy: string;
-  publishAt: string;
-  caption: string;
-  tiktokPrivacy: string;
-}
-
-export default function PublishClip({ item, accounts }: Props) {
+export default function PublishClip({ item, accounts, defaultCategoryId = DEFAULT_CATEGORY_ID }: Props) {
   const [open, setOpen]           = useState(false);
   const [platform, setPlatform]   = useState<Platform>('youtube');
   const [publishState, setPublishState] = useState<PublishState>('ready');
-  const [result, setResult] = useState<{ url?: string; message?: string; error?: string } | null>(null);
+  const [result, setResult] = useState<PublishResultState | null>(null);
   const [creatorInfo, setCreatorInfo] = useState<TikTokCreatorInfo | null>(null);
   const [creatorLoading, setCreatorLoading] = useState(false);
   const [creatorError, setCreatorError] = useState('');
@@ -47,25 +38,21 @@ export default function PublishClip({ item, accounts }: Props) {
   const [youtubeStatusLoading, setYoutubeStatusLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [resumeRecord, setResumeRecord] = useState<ResumeRecord | null>(null);
+  const [ytForm, setYtForm] = useState<YouTubeForm>(() => initialYouTubeForm(item, defaultCategoryId));
+  const [caption, setCaption] = useState('');
+  const [thumbnail, setThumbnail] = useState<{ name: string; previewUrl: string; blob: Blob } | null>(null);
+  const [thumbnailBusy, setThumbnailBusy] = useState(false);
+  const [thumbnailError, setThumbnailError] = useState('');
   const abortRef = useRef<AbortController | null>(null);
   const itemDurationSeconds = Number(item.durationSeconds ?? 0);
+  const shortsCandidate = isShortsCandidate(item);
 
   // A saved unfinished upload for this export (same name and size) can be resumed after a reload.
   useEffect(() => {
     if (open) setResumeRecord(findResumableUpload({ name: item.filename, size: item.sizeBytes }));
   }, [open, item.filename, item.sizeBytes]);
   useEffect(() => () => abortRef.current?.abort(), []);
-  const [form, setForm]           = useState<FormState>({
-    title:         item.filename.replace(/\.[^.]+$/, '').replace(/_/g, ' '),
-    description:   '#Shorts #Music',
-    tags:          'shorts,music',
-    privacy:       'private',
-    publishAt:     '',
-    caption:       '#Shorts #Music',
-    tiktokPrivacy: '',
-  });
-
-  const setF = (k: keyof FormState, v: string) => setForm(p => ({ ...p, [k]: v }));
+  useEffect(() => () => { if (thumbnail) URL.revokeObjectURL(thumbnail.previewUrl); }, [thumbnail]);
 
   const refreshCreatorInfo = async () => {
     setCreatorLoading(true); setCreatorError('');
@@ -87,65 +74,82 @@ export default function PublishClip({ item, accounts }: Props) {
     if (open && platform === 'tiktok' && !creatorInfo && !creatorLoading && !creatorError) void refreshCreatorInfo();
   }, [open, platform, creatorInfo, creatorLoading, creatorError]);
 
-  const inputCls = 'w-full px-3 py-2 rounded-lg bg-[var(--bg-surface2)] border border-[var(--border-input)] text-[var(--text-1)] text-sm focus:outline-none focus:border-indigo-500 transition';
+  const pickThumbnail = async (file: File | null) => {
+    setThumbnailError('');
+    if (!file) { setThumbnail(null); return; }
+    setThumbnailBusy(true);
+    try {
+      const blob = await prepareThumbnail(file);
+      setThumbnail({ name: file.name, previewUrl: URL.createObjectURL(blob), blob });
+    } catch (error) {
+      setThumbnail(null); setThumbnailError(error instanceof Error ? error.message : 'This image could not be used.');
+    } finally { setThumbnailBusy(false); }
+  };
+
+  const sendThumbnail = async (videoId: string, blob: Blob): Promise<PublishResultState['thumbnailNote']> => {
+    try {
+      const response = await fetch(`/api/upload/youtube/thumbnail?videoId=${encodeURIComponent(videoId)}`, { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob });
+      if (response.ok) return { ok: true, text: 'Thumbnail set.' };
+      const data = await response.json().catch(() => ({})) as { error?: string };
+      return { ok: false, text: `Video uploaded, but the thumbnail was not set: ${data.error || 'YouTube refused it.'}` };
+    } catch { return { ok: false, text: 'Video uploaded, but the thumbnail could not be sent. You can add it in YouTube Studio.' }; }
+  };
+
+  const readExport = async (): Promise<File> => {
+    const res = await fetch(item.url);
+    if (!res.ok) throw new Error('Could not read the local export. Download it again before uploading.');
+    const blob = await res.blob();
+    if (blob.size === 0) throw new Error('The selected export is empty. Export the clip again before uploading.');
+    return new File([blob], item.filename, { type: blob.type });
+  };
+
+  const publishYouTube = async (resume: ResumeRecord | null) => {
+    const file = await readExport();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const options = { signal: controller.signal, onProgress: setUploadProgress };
+    const d = resume ? await resumeYouTubeUpload(file, resume, options) : await uploadToYouTube(file, toYouTubeDraft(ytForm), options);
+    setResumeRecord(null);
+    setYoutubeVideoId(d.tracked ? d.videoId : '');
+    setPublishState('processing');
+    const thumbnailNote = thumbnail && !resume
+      ? (d.tracked ? await sendThumbnail(d.videoId, thumbnail.blob) : { ok: false, text: 'Add the thumbnail in YouTube Studio; it could not be sent automatically.' })
+      : undefined;
+    setResult({
+      url: d.shortsUrl,
+      thumbnailNote,
+      message: d.tracked
+        ? 'YouTube accepted the upload and is processing it. This can take a few minutes; publication is not confirmed yet.'
+        : 'YouTube accepted the upload, but status checks are unavailable. Check YouTube Studio for processing.',
+    });
+  };
+
+  const publishTikTok = async () => {
+    if (!creatorInfo || creatorLoading || (itemDurationSeconds > 0 && itemDurationSeconds > creatorInfo.maxVideoDurationSeconds)) {
+      throw new Error(creatorError || 'TikTok account upload limits are not available. Refresh creator settings and try again.');
+    }
+    const fd = new FormData();
+    fd.append('video', await readExport());
+    fd.append('caption', caption);
+    fd.append('privacy', 'SELF_ONLY');
+    const r = await fetch('/api/upload/tiktok', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    setTiktokPublishId(d.publishId);
+    setPublishState('awaiting-user');
+    setResult({ message: d.message || 'TikTok accepted the upload. Publication is not confirmed yet.' });
+  };
 
   const publish = async (resume: ResumeRecord | null = null) => {
     setPublishState('transferring'); setResult(null);
     try {
-      const res  = await fetch(item.url);
-      if (!res.ok) throw new Error('Could not read the local export. Download it again before uploading.');
-      const blob = await res.blob();
-      if (blob.size === 0) throw new Error('The selected export is empty. Export the clip again before uploading.');
-      const file = new File([blob], item.filename, { type: blob.type });
-      const fd   = new FormData();
-      fd.append('video', file);
-
-      if (platform === 'youtube') {
-        const controller = new AbortController();
-        abortRef.current = controller;
-        const options = { signal: controller.signal, onProgress: setUploadProgress };
-        const privacy = form.privacy === 'public' || form.privacy === 'unlisted' ? form.privacy : 'private';
-        const d = resume
-          ? await resumeYouTubeUpload(file, resume, options)
-          : await uploadToYouTube(file, {
-            title: form.title,
-            description: form.description,
-            tags: form.tags,
-            privacy,
-            publishAt: form.publishAt ? new Date(form.publishAt).toISOString() : null,
-            categoryId: '10',
-            madeForKids: false,
-          }, options);
-        setResumeRecord(null);
-        setYoutubeVideoId(d.tracked ? d.videoId : '');
-        setPublishState('processing');
-        setResult({ url: d.shortsUrl, message: d.tracked
-          ? 'YouTube accepted the upload. Processing may take a few minutes; publication is not confirmed yet.'
-          : 'YouTube accepted the upload, but status checks are unavailable. Check YouTube Studio for processing.' });
-      } else {
-        if (!creatorInfo || creatorLoading || (itemDurationSeconds > 0 && itemDurationSeconds > creatorInfo.maxVideoDurationSeconds)) {
-          throw new Error(creatorError || 'TikTok account upload limits are not available. Refresh creator settings and try again.');
-        }
-        fd.append('caption', form.caption);
-        fd.append('privacy', 'SELF_ONLY');
-        const r = await fetch('/api/upload/tiktok', { method: 'POST', body: fd });
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.error);
-        setTiktokPublishId(d.publishId);
-        setPublishState('awaiting-user');
-        setResult({ message: d.message || 'TikTok accepted the upload. Publication is not confirmed yet.' });
-      }
+      if (platform === 'youtube') await publishYouTube(resume);
+      else await publishTikTok();
     } catch (e: unknown) {
-      if (e instanceof UploadError && e.code === 'cancelled') {
-        setPublishState('ready');
-        setResumeRecord(findResumableUpload({ name: item.filename, size: item.sizeBytes }));
-        setResult({ message: e.message });
-        return;
-      }
-      const msg = e instanceof Error ? e.message : 'Upload error';
-      setPublishState('failed');
+      const paused = e instanceof UploadError && e.code === 'cancelled';
+      setPublishState(paused ? 'ready' : 'failed');
       setResumeRecord(findResumableUpload({ name: item.filename, size: item.sizeBytes }));
-      setResult({ error: msg });
+      setResult(paused ? { message: e.message } : { error: e instanceof Error ? e.message : 'Upload error' });
     } finally {
       abortRef.current = null;
       setUploadProgress(null);
@@ -179,10 +183,10 @@ export default function PublishClip({ item, accounts }: Props) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Status check failed.');
       if (data.status === 'processed') {
-        setPublishState('processed'); setResult({ url: data.shortsUrl, message: `YouTube processing succeeded. Current visibility: ${data.privacyStatus || 'unknown'}. Processing status alone does not confirm publication.` });
+        setPublishState('processed'); setResult((prev) => ({ url: data.shortsUrl, thumbnailNote: prev?.thumbnailNote, message: `YouTube finished processing. Current visibility: ${data.privacyStatus || 'unknown'}. Processing alone does not confirm the video is live.` }));
       } else if (data.status === 'failed') {
         setPublishState('failed'); setResult({ error: `YouTube processing failed: ${data.failureReason || data.providerStatus}` });
-      } else setResult({ url: data.shortsUrl, message: `YouTube status: ${data.providerStatus}. Processing is not complete yet.` });
+      } else setResult((prev) => ({ url: data.shortsUrl, thumbnailNote: prev?.thumbnailNote, message: `YouTube is still processing (${data.providerStatus}). Check again in a minute.` }));
     } catch (error) { setResult({ error: error instanceof Error ? error.message : 'Could not check YouTube status.' }); }
     finally { setYoutubeStatusLoading(false); }
   };
@@ -190,6 +194,14 @@ export default function PublishClip({ item, accounts }: Props) {
   const canPublishYT = !!accounts?.google;
   const canPublishTT = !!accounts?.tiktok;
   if (!canPublishYT && !canPublishTT) return null;
+
+  const busyOrDone = publishState === 'transferring' || publishState === 'processing' || publishState === 'processed' || publishState === 'awaiting-user' || publishState === 'published';
+  const formProblem = platform === 'youtube'
+    ? (thumbnailBusy ? 'Wait for the thumbnail to finish preparing.' : youTubeFormProblem(ytForm, Date.now()))
+    : (!creatorInfo || creatorLoading || (itemDurationSeconds > 0 && itemDurationSeconds > creatorInfo.maxVideoDurationSeconds) ? (creatorError || 'Checking your TikTok account…') : null);
+  const statusCheck = youtubeVideoId
+    ? { label: 'Check YouTube status', busyLabel: 'Checking YouTube…', busy: youtubeStatusLoading, onCheck: () => void checkYouTubeStatus() }
+    : tiktokPublishId ? { label: 'Check TikTok status', busyLabel: 'Checking TikTok…', busy: tiktokStatusLoading, onCheck: () => void checkTikTokStatus() } : null;
 
   return (
     <>
@@ -203,65 +215,46 @@ export default function PublishClip({ item, accounts }: Props) {
       {/* Portal: the step containers keep a transform from their entrance animation, which would trap a fixed overlay. */}
       {open && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget && publishState !== 'transferring') setOpen(false); }}>
-          <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md space-y-5 shadow-2xl">
+          <div role="dialog" aria-modal="true" aria-labelledby="publish-title" className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto space-y-5 shadow-2xl">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold text-[var(--text-1)]">Publish Clip</h3>
+              <h3 id="publish-title" className="font-bold text-[var(--text-1)]">Publish this video</h3>
               <button onClick={() => { abortRef.current?.abort(); setOpen(false); }} aria-label="Close" className="text-[var(--text-3)] hover:text-[var(--text-1)] cursor-pointer text-xl leading-none">✕</button>
             </div>
             <p className="text-xs text-[var(--text-2)] truncate">{item.filename}</p>
 
-            {/* Platform tabs */}
             <div className="flex gap-2">
               {canPublishYT && (
-                <button onClick={() => setPlatform('youtube')} className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition cursor-pointer ${platform === 'youtube' ? 'bg-red-600 text-white border-red-600' : 'bg-[var(--bg-surface2)] text-[var(--text-2)] border-[var(--border)]'}`}>
+                <button disabled={publishState === 'transferring'} onClick={() => setPlatform('youtube')} className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition cursor-pointer disabled:opacity-50 ${platform === 'youtube' ? 'bg-red-600 text-white border-red-600' : 'bg-[var(--bg-surface2)] text-[var(--text-2)] border-[var(--border)]'}`}>
                   YouTube
                 </button>
               )}
               {canPublishTT && (
-                <button onClick={() => { setPlatform('tiktok'); setCreatorInfo(null); setCreatorError(''); setPublishState('ready'); }} className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition cursor-pointer ${platform === 'tiktok' ? 'bg-zinc-800 text-white border-zinc-600' : 'bg-[var(--bg-surface2)] text-[var(--text-2)] border-[var(--border)]'}`}>
+                <button disabled={publishState === 'transferring'} onClick={() => { setPlatform('tiktok'); setCreatorInfo(null); setCreatorError(''); setPublishState('ready'); }} className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition cursor-pointer disabled:opacity-50 ${platform === 'tiktok' ? 'bg-zinc-800 text-white border-zinc-600' : 'bg-[var(--bg-surface2)] text-[var(--text-2)] border-[var(--border)]'}`}>
                   TikTok
                 </button>
               )}
             </div>
 
             {platform === 'youtube' && (
-              <div className="space-y-3">
-                <div><label className="block text-xs text-[var(--text-2)] mb-1">Title</label><input className={inputCls} value={form.title} onChange={e => setF('title', e.target.value)} maxLength={100} /></div>
-                <div><label className="block text-xs text-[var(--text-2)] mb-1">Description</label><textarea className={inputCls + ' resize-none h-20'} value={form.description} onChange={e => setF('description', e.target.value)} /></div>
-                <div><label className="block text-xs text-[var(--text-2)] mb-1">Tags (comma-separated)</label><input className={inputCls} value={form.tags} onChange={e => setF('tags', e.target.value)} /></div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-[var(--text-2)] mb-1">Privacy</label>
-                    <select className={inputCls} value={form.privacy} onChange={e => setF('privacy', e.target.value)}>
-                      <option value="public">Public</option>
-                      <option value="unlisted">Unlisted</option>
-                      <option value="private">Private</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-[var(--text-2)] mb-1">Schedule (optional)</label>
-                    <input type="datetime-local" className={inputCls} value={form.publishAt} onChange={e => setF('publishAt', e.target.value)} />
-                  </div>
-                </div>
-              </div>
+              <YouTubeFields
+                form={ytForm}
+                onChange={(patch) => setYtForm((prev) => ({ ...prev, ...patch }))}
+                shortsCandidate={shortsCandidate}
+                thumbnail={thumbnail}
+                thumbnailBusy={thumbnailBusy}
+                thumbnailError={thumbnailError}
+                onThumbnailPick={(file) => void pickThumbnail(file)}
+                disabled={busyOrDone}
+              />
             )}
 
             {platform === 'tiktok' && (
-              <div className="space-y-3">
-                <div><label className="block text-xs text-[var(--text-2)] mb-1">Caption</label><textarea className={inputCls + ' resize-none h-24'} value={form.caption} onChange={e => setF('caption', e.target.value)} maxLength={2200} /></div>
-                <div>
-                  <p className="rounded-lg bg-[var(--bg-surface2)] p-3 text-xs text-[var(--text-2)]">TikTok will deliver this video to your inbox. Open TikTok to choose privacy, review, and finish publishing.</p>
-                  {creatorLoading && <p role="status" className="mt-2 text-xs text-[var(--text-2)]">Checking account upload limit…</p>}
-                  {creatorError && <p role="alert" className="mt-2 text-xs text-rose-300">{creatorError}</p>}
-                  {creatorInfo && <p className="mt-2 text-[11px] text-[var(--text-3)]">{creatorInfo.nickname || creatorInfo.username || 'Connected creator'} · Max duration {creatorInfo.maxVideoDurationSeconds}s.</p>}
-                  {creatorInfo && itemDurationSeconds > creatorInfo.maxVideoDurationSeconds && <p role="alert" className="mt-1 text-xs text-rose-300">This export is {itemDurationSeconds}s, longer than this account’s {creatorInfo.maxVideoDurationSeconds}s limit.</p>}
-                </div>
-              </div>
+              <TikTokFields caption={caption} onCaptionChange={setCaption} creatorInfo={creatorInfo} creatorLoading={creatorLoading} creatorError={creatorError} itemDurationSeconds={itemDurationSeconds} />
             )}
 
             {platform === 'youtube' && resumeRecord && publishState !== 'transferring' && (
               <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-200 space-y-2">
-                <p>An unfinished upload of this export was found. Resuming keeps the title and settings you chose when it started.</p>
+                <p>An unfinished upload of this export was found. Resuming keeps the title and settings you chose when it started (a new thumbnail is not sent).</p>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => void publish(resumeRecord)} className="rounded-lg bg-sky-600 px-3 py-1.5 font-semibold text-white hover:bg-sky-500">Resume upload</button>
                   <button type="button" onClick={() => { forgetResumableUpload(resumeRecord.uploadId); setResumeRecord(null); }} className="rounded-lg border border-sky-400/40 px-3 py-1.5 font-semibold">Start over</button>
@@ -271,21 +264,16 @@ export default function PublishClip({ item, accounts }: Props) {
 
             {uploadProgress && publishState === 'transferring' && <UploadProgressBar progress={uploadProgress} onCancel={() => abortRef.current?.abort()} />}
 
-            {result && (
-              <div role="status" className={`rounded-xl px-4 py-3 text-sm ${result.error ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-amber-500/10 text-amber-200 border border-amber-500/20'}`}>
-                {result.error ? `Upload failed: ${result.error} Your local export is unchanged.` : <>{result.message} {result.url && <a href={result.url} target="_blank" rel="noopener noreferrer" className="underline">View on YouTube →</a>}</>}
-                {youtubeVideoId && <button type="button" onClick={() => void checkYouTubeStatus()} disabled={youtubeStatusLoading} className="mt-3 block rounded-lg border border-amber-300/30 px-3 py-1.5 text-xs font-semibold disabled:opacity-50">{youtubeStatusLoading ? 'Checking YouTube…' : 'Check YouTube status'}</button>}
-                {tiktokPublishId && <button type="button" onClick={() => void checkTikTokStatus()} disabled={tiktokStatusLoading} className="mt-3 block rounded-lg border border-amber-300/30 px-3 py-1.5 text-xs font-semibold disabled:opacity-50">{tiktokStatusLoading ? 'Checking TikTok…' : 'Check TikTok status'}</button>}
-              </div>
-            )}
+            {result && <PublishResult result={result} statusCheck={statusCheck} />}
 
             <p className="text-[11px] text-[var(--text-3)]">By continuing, you authorize uploading this selected local export with the settings shown above. The original export remains available on this device.</p>
+            {!busyOrDone && formProblem && <p className="text-xs text-amber-300">{formProblem}</p>}
             <button
               onClick={() => { if (window.confirm(`Upload ${item.filename} to ${platform === 'youtube' ? 'YouTube' : 'TikTok'} with the selected settings?`)) void publish(); }}
-              disabled={publishState === 'transferring' || publishState === 'processing' || publishState === 'processed' || publishState === 'awaiting-user' || publishState === 'published' || (platform === 'tiktok' && (!creatorInfo || creatorLoading || (itemDurationSeconds > 0 && itemDurationSeconds > creatorInfo.maxVideoDurationSeconds)))}
+              disabled={busyOrDone || !!formProblem}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-sm transition cursor-pointer disabled:opacity-40"
             >
-              {publishState === 'transferring' ? '⟳ Uploading…' : publishState === 'processing' ? 'Processing — check status above' : publishState === 'processed' ? 'Processing complete — check status above' : publishState === 'awaiting-user' ? 'Finish in TikTok' : publishState === 'published' ? 'Published' : `Upload to ${platform === 'youtube' ? 'YouTube Shorts' : 'TikTok'}`}
+              {publishState === 'transferring' ? '⟳ Uploading…' : publishState === 'processing' ? 'Processing — check status above' : publishState === 'processed' ? 'Processing complete — check status above' : publishState === 'awaiting-user' ? 'Finish in TikTok' : publishState === 'published' ? 'Published' : `Upload to ${platform === 'youtube' ? 'YouTube' : 'TikTok'}`}
             </button>
           </div>
         </div>,

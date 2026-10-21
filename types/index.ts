@@ -34,6 +34,9 @@ export interface DownloadItem {
   url: string;
   sizeBytes: number;
   durationSeconds?: number;
+  /** Output frame size; used for Shorts-vs-long publishing defaults. */
+  width?: number;
+  height?: number;
 }
 
 export interface AlbumTrackFile {

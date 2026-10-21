@@ -62,7 +62,7 @@ export default function ExportPanel({ segmentCount, isRendering, progress, downl
                     {d.filename} <span className="text-[var(--text-3)] mono">({(d.sizeBytes / 1024 / 1024).toFixed(2)} MB)</span>
                   </span>
                   <span className="flex items-center gap-2 shrink-0">
-                    <PublishClip item={d} accounts={accounts}/>
+                    <PublishClip item={d} accounts={accounts} defaultCategoryId="10" />
                     <a href={d.url} download={d.filename} className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition shrink-0" aria-label={`Download ${d.filename}`}>
                       ↓
                     </a>

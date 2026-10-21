@@ -7,7 +7,7 @@ import {
 
 const now = Date.UTC(2026, 9, 21, 12, 0, 0);
 const future = new Date(now + 3_600_000).toISOString();
-const base = { videoType: 'video/mp4', title: 'T', description: '', tags: '', privacy: 'private', publishAt: null, categoryId: null, madeForKids: null };
+const base = { videoType: 'video/mp4', title: 'T', description: '', tags: '', privacy: 'private', publishAt: null, categoryId: null, madeForKids: 'false' };
 const fail = (overrides) => {
   const r = validateYouTubeUpload({ ...base, ...overrides }, now);
   assert.equal(r.ok, false, JSON.stringify(overrides));
@@ -59,8 +59,9 @@ test('categoryId defaults to 22 and must be a standard assignable category', () 
   assert.equal(fail({ categoryId: 'music' }).code, 'invalid_category');
 });
 
-test('selfDeclaredMadeForKids must be a boolean when sent; defaults to false until the client sends it', () => {
-  assert.equal(pass({}).status.selfDeclaredMadeForKids, false);
+test('selfDeclaredMadeForKids is required and must be a boolean (the audience question has no default)', () => {
+  assert.equal(fail({ madeForKids: null }).code, 'made_for_kids_required');
+  assert.equal(fail({ madeForKids: '' }).code, 'made_for_kids_required');
   assert.equal(pass({ madeForKids: 'true' }).status.selfDeclaredMadeForKids, true);
   assert.equal(pass({ madeForKids: 'false' }).status.selfDeclaredMadeForKids, false);
   assert.equal(fail({ madeForKids: 'yes' }).code, 'invalid_made_for_kids');

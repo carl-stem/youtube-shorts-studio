@@ -70,14 +70,14 @@ export function validateYouTubeUpload(fields: YouTubeUploadFields, nowMs: number
     return { ok: false, status: 400, code: 'invalid_category', error: 'Invalid YouTube category' };
   }
 
-  // TODO(Phase 2): require this once PublishClip asks the audience question; absent means false today.
-  let selfDeclaredMadeForKids = false;
-  if (fields.madeForKids !== null) {
-    if (fields.madeForKids !== 'true' && fields.madeForKids !== 'false') {
-      return { ok: false, status: 400, code: 'invalid_made_for_kids', error: 'Made-for-kids must be true or false' };
-    }
-    selfDeclaredMadeForKids = fields.madeForKids === 'true';
+  // The uploader must answer the audience question (COPPA); there is no default.
+  if (fields.madeForKids === null || fields.madeForKids === '') {
+    return { ok: false, status: 400, code: 'made_for_kids_required', error: 'Answer whether the video is made for kids' };
   }
+  if (fields.madeForKids !== 'true' && fields.madeForKids !== 'false') {
+    return { ok: false, status: 400, code: 'invalid_made_for_kids', error: 'Made-for-kids must be true or false' };
+  }
+  const selfDeclaredMadeForKids = fields.madeForKids === 'true';
 
   let publishAt: string | undefined;
   if (fields.publishAt) {

@@ -649,7 +649,7 @@ export default function Studio({ accounts, onProjectActions }: StudioProps) {
           const blob = new Blob(chunks, { type: detectedFormat.mime || 'video/webm' });
           if (!blob.size) { toast('Render failed: browser returned an empty file.', 'error'); resolve(); return; }
           const url  = URL.createObjectURL(blob);
-          setDownloads((prev) => [...prev, { filename: outFile, url, sizeBytes: blob.size, durationSeconds: segment.duration }]);
+          setDownloads((prev) => [...prev, { filename: outFile, url, sizeBytes: blob.size, durationSeconds: segment.duration, width: 1080, height: 1920 }]);
           // Auto-trigger browser download
           const a = document.createElement('a');
           a.href = url; a.download = outFile;
