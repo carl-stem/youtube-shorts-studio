@@ -17,7 +17,10 @@ export async function GET(req: NextRequest) {
       headers: { Authorization: `Bearer ${token}` },
     });
     const payload = await response.json();
-    if (!response.ok) return NextResponse.json({ error: payload.error?.message || 'Could not check YouTube processing status' }, { status: 502 });
+    if (!response.ok) {
+      console.error('[upload/youtube/status] provider error', response.status, payload.error);
+      return NextResponse.json({ error: 'Could not check YouTube processing status', code: 'provider_error' }, { status: 502 });
+    }
     const video = payload.items?.[0];
     if (!video) return NextResponse.json({ error: 'YouTube video not found' }, { status: 404 });
     const processingStatus = video.processingDetails?.processingStatus;

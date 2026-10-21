@@ -20,7 +20,8 @@ export async function GET(req: NextRequest) {
     });
     const payload = await response.json();
     if (!response.ok || payload.error?.code !== 'ok' || !payload.data) {
-      return NextResponse.json({ error: payload.error?.message || 'Could not check TikTok publishing status' }, { status: 502 });
+      console.error('[upload/tiktok/status] provider error', response.status, payload.error);
+      return NextResponse.json({ error: 'Could not check TikTok publishing status', code: 'provider_error' }, { status: 502 });
     }
     const providerStatus = String(payload.data.status ?? '');
     const status = providerStatus === 'PUBLISH_COMPLETE' ? 'published'

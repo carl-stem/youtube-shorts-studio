@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ videos, totals });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Analytics error';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('[analytics/youtube] failed', err);
+    return NextResponse.json({ error: 'Could not load YouTube analytics. Try again later.', code: 'analytics_failed' }, { status: 500 });
   }
 }

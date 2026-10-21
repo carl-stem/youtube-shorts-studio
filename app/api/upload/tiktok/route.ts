@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ publishId: publish_id, mode: 'inbox', status: 'awaiting-user', message: 'Upload transferred to TikTok. Open the TikTok app to review and finish publishing it.' }, { status: 202 });
 
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Upload error';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('[upload/tiktok] upload failed', err);
+    return NextResponse.json({ error: 'TikTok upload failed. Check the TikTok app before retrying.', code: 'upload_failed' }, { status: 500 });
   }
 }

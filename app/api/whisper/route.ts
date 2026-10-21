@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ srt: formatSRT(transcription.segments ?? []) });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[whisper] transcription failed', err);
+    return NextResponse.json({ error: 'Caption generation failed. Try again, or use a shorter or different audio file.', code: 'transcription_failed' }, { status: 500 });
   }
 }

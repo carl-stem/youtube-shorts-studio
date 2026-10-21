@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { clearGoogleTokens, clearTikTokTokens, getGoogleTokens, getTikTokTokens, setGoogleTokens, setTikTokTokens, tokenEncryptionReady } from '../../../../../lib/tokenManager';
 import { kvDel, kvGetDel, kvGet, kvSetWithExpiry } from '../../../../../lib/kv';
+import { authErrorFromProviderParam, type AuthErrorCode } from '../../../../../lib/authErrors';
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
@@ -8,19 +9,24 @@ export async function GET(req: NextRequest) {
   const stateCookie = req.cookies.get('oauth_tiktok_state')?.value;
   const savedState = stateCookie?.split('.')[0];
   const base = process.env.NEXTAUTH_URL;
-  if (!base || new URL(base).origin !== base.replace(/\/$/, '')) return NextResponse.json({ error: 'Application origin is not configured' }, { status: 503 });
-  const reject = (reason: string) => {
-    const response = NextResponse.redirect(`${base}/?auth_error=${encodeURIComponent(reason)}`);
+  if (!base || new URL(base).origin !== base.replace(/\/$/, '')) return NextResponse.json({ error: 'Application origin is not configured', code: 'not_configured' }, { status: 503 });
+  // Only fixed codes reach the URL; upstream details are logged server-side.
+  const reject = (code: AuthErrorCode) => {
+    const response = NextResponse.redirect(`${base}/?auth_error=${encodeURIComponent(code)}`);
     response.cookies.delete('oauth_tiktok_state');
     return response;
   };
 
-  if (!code) return reject('no_code_tiktok');
-  if (!state || !savedState || state !== savedState) return reject('invalid_oauth_state');
+  if (!code) {
+    const providerError = req.nextUrl.searchParams.get('error');
+    if (providerError) console.error('[auth/tiktok] provider returned error', providerError, req.nextUrl.searchParams.get('error_description'));
+    return reject(authErrorFromProviderParam(providerError));
+  }
+  if (!state || !savedState || state !== savedState) return reject('state_mismatch');
   const stateKey = `oauth:state:tiktok:${state}`;
   const stateRecord = await kvGetDel<{ createdAt: number }>(stateKey);
-  if (!stateRecord || !Number.isFinite(stateRecord.createdAt) || Date.now() - stateRecord.createdAt > 10 * 60 * 1000 || stateRecord.createdAt > Date.now() + 60_000) return reject('invalid_oauth_state');
-  if (!process.env.TIKTOK_CLIENT_KEY || !process.env.TIKTOK_CLIENT_SECRET) return reject('tiktok_oauth_not_configured');
+  if (!stateRecord || !Number.isFinite(stateRecord.createdAt) || Date.now() - stateRecord.createdAt > 10 * 60 * 1000 || stateRecord.createdAt > Date.now() + 60_000) return reject('state_mismatch');
+  if (!process.env.TIKTOK_CLIENT_KEY || !process.env.TIKTOK_CLIENT_SECRET) return reject('not_configured');
 
   if (!tokenEncryptionReady()) return reject('token_encryption_not_configured');
   try {
@@ -64,7 +70,7 @@ export async function GET(req: NextRequest) {
     const otherProviderSaved = (!previousGoogleTokens || await setGoogleTokens(sessionId, previousGoogleTokens))
       && (!previousTikTokTokens || await setTikTokTokens(sessionId, previousTikTokTokens));
     const sessionSaved = saved && otherProviderSaved && await kvSetWithExpiry(`oauth:session:${sessionId}`, { createdAt: Date.now() }, 60 * 60 * 24 * 30);
-    if (!sessionSaved) return reject('token_storage_unavailable');
+    if (!sessionSaved) return reject('kv_unavailable');
     if (previousSessionId && previousSession) {
       await clearGoogleTokens(previousSessionId);
       await clearTikTokTokens(previousSessionId);
@@ -76,7 +82,7 @@ export async function GET(req: NextRequest) {
     response.cookies.delete('oauth_tiktok_state');
     return response;
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Auth error';
-    return reject(msg);
+    console.error('[auth/tiktok] OAuth callback failed', err);
+    return reject('provider_error');
   }
 }

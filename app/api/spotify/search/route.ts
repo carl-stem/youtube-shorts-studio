@@ -31,6 +31,10 @@ export async function GET(req: NextRequest) {
   if (!q) return NextResponse.json({ error: 'Missing q param' }, { status: 400 });
   const limited = await applyRateLimit(req, 'spotify-search', 30, 60);
   if ('response' in limited) return limited.response;
+  // Checked up front so this stays a stable message the client recognises, not a caught exception.
+  if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
+    return NextResponse.json({ error: 'Spotify credentials not configured', code: 'not_configured' }, { status: 500 });
+  }
 
   try {
     const token = await getSpotifyToken();
@@ -61,7 +65,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ tracks });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[spotify] search failed', err);
+    return NextResponse.json({ error: 'Spotify search failed. Try again in a moment.', code: 'spotify_search_failed' }, { status: 500 });
   }
 }

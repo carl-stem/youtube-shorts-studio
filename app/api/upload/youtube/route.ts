@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Upload error';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('[upload/youtube] upload failed', err);
+    return NextResponse.json({ error: 'YouTube upload failed. Check YouTube Studio before retrying.', code: 'upload_failed' }, { status: 500 });
   }
 }
