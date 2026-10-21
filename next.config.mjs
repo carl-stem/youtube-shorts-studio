@@ -11,7 +11,7 @@ const isDev = process.env.NODE_ENV !== 'production';
 //   (i.ytimg.com, AnalyticsDashboard); data:/blob: for local covers and exports.
 // - connect-src: blob: because exports are re-read with fetch(blobUrl) for upload/share;
 //   i.scdn.co because Studio fetches album art to draw it on the canvas;
-//   www.googleapis.com for planned direct browser→YouTube resumable uploads.
+//   www.googleapis.com for direct browser→YouTube resumable chunk PUTs (lib/publish/youtubeUpload.ts).
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,

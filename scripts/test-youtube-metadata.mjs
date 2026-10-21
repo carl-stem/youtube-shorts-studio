@@ -25,9 +25,9 @@ test('publishAt is rejected unless privacy is private (YouTube only schedules pr
   assert.equal(pass({ privacy: 'private', publishAt: future }).status.publishAt, future);
 });
 
-test('upload route does not schedule non-private videos', async () => {
+test('upload session route does not schedule non-private videos', async () => {
   // Pins the original bug: the route must delegate to the validator, not hand-roll publishAt checks.
-  const source = await readFile(new URL('../app/api/upload/youtube/route.ts', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../app/api/upload/youtube/session/route.ts', import.meta.url), 'utf8');
   assert.match(source, /validateYouTubeUpload\(/);
 });
 

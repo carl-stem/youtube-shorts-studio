@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { DownloadItem } from '../types';
+import { uploadToYouTube } from '../lib/publish/youtubeUpload';
 
 interface AccountStatus {
   google:  { channelName: string } | null;
@@ -86,18 +87,21 @@ export default function PublishClip({ item, accounts }: Props) {
       if (!res.ok) throw new Error('Could not read the local export. Download it again before uploading.');
       const blob = await res.blob();
       if (blob.size === 0) throw new Error('The selected export is empty. Export the clip again before uploading.');
+      const file = new File([blob], item.filename, { type: blob.type });
       const fd   = new FormData();
-      fd.append('video', new File([blob], item.filename, { type: blob.type }));
+      fd.append('video', file);
 
       if (platform === 'youtube') {
-        fd.append('title',       form.title);
-        fd.append('description', form.description);
-        fd.append('tags',        form.tags);
-        fd.append('privacy',     form.privacy);
-        if (form.publishAt) fd.append('publishAt', new Date(form.publishAt).toISOString());
-        const r = await fetch('/api/upload/youtube', { method: 'POST', body: fd });
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.error);
+        const privacy = form.privacy === 'public' || form.privacy === 'unlisted' ? form.privacy : 'private';
+        const d = await uploadToYouTube(file, {
+          title: form.title,
+          description: form.description,
+          tags: form.tags,
+          privacy,
+          publishAt: form.publishAt ? new Date(form.publishAt).toISOString() : null,
+          categoryId: '10',
+          madeForKids: false,
+        });
         setYoutubeVideoId(d.videoId);
         setPublishState('processing');
         setResult({ url: d.shortsUrl, message: 'YouTube accepted the upload. Processing may take a few minutes; publication is not confirmed yet.' });
