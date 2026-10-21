@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AccountStatus, DownloadItem } from '../../../types';
 import { duration, formatTimecode } from '../../../lib/editor/timeline';
 import { canRecordInBrowser, recordSequence } from '../../../lib/render/recorderExport';
+import { getSupportedMimeType } from '../../../lib/mediaCodec';
 import type { SequencePlayer } from '../../../lib/render/sequencePlayer';
 import PublishClip from '../../PublishClip';
 import { useEditor } from '../EditorProvider';
@@ -35,7 +36,8 @@ export default function ReviewShare({ player, canvas, accounts, downloads, onExp
   const total = duration(project);
   const tooLong = isOverLength(total, format.maxSeconds);
 
-  useEffect(() => { setSupported(canRecordInBrowser()); }, []);
+  const [codecLabel, setCodecLabel] = useState('');
+  useEffect(() => { setSupported(canRecordInBrowser()); setCodecLabel(getSupportedMimeType().label); }, []);
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const download = (item: DownloadItem) => {
@@ -84,7 +86,7 @@ export default function ReviewShare({ player, canvas, accounts, downloads, onExp
         {!exporting
           ? <button type="button" className={primaryButton} onClick={() => void startExport()} disabled={!supported || tooLong || total <= 0 || !player}>Export my {format.label} · {formatTimecode(total)}</button>
           : <button type="button" className="rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-500" onClick={() => abortRef.current?.abort()}>Cancel export</button>}
-        <span className="text-xs text-[var(--text-2)]">{format.width} × {format.height}</span>
+        <span className="text-xs text-[var(--text-2)]">{format.width} × {format.height} · {format.fps} fps{codecLabel ? ` · ${codecLabel}` : ''}</span>
       </div>
       <LengthNotice />
       {supported === false && <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">This browser can&apos;t record video. Try current Chrome, Edge, or Safari on a computer.</p>}

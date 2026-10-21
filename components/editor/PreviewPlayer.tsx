@@ -1,5 +1,7 @@
 'use client';
 
+import { useRef } from 'react';
+import type { PointerEvent } from 'react';
 import type { FormatPreset } from '../../lib/render/layout';
 import { formatTimecode } from '../../lib/editor/timeline';
 
@@ -12,10 +14,19 @@ interface Props {
   disabled: boolean;
   onToggle: () => void;
   onSeek: (t: number) => void;
+  /** When set, dragging on the picture reports how far it moved, as fractions of the frame. */
+  onDrag?: (dx: number, dy: number, done: boolean) => void;
 }
 
-export default function PreviewPlayer({ format, canvasRef, time, total, playing, disabled, onToggle, onSeek }: Props) {
+export default function PreviewPlayer({ format, canvasRef, time, total, playing, disabled, onToggle, onSeek, onDrag }: Props) {
   const tall = format.height > format.width;
+  const drag = useRef<{ x: number; y: number } | null>(null);
+  const move = (event: PointerEvent<HTMLCanvasElement>, done: boolean) => {
+    if (!drag.current || !onDrag) return;
+    const { clientWidth, clientHeight } = event.currentTarget;
+    onDrag((event.clientX - drag.current.x) / Math.max(1, clientWidth), (event.clientY - drag.current.y) / Math.max(1, clientHeight), done);
+    if (done) drag.current = null;
+  };
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-5">
       <div className="flex items-center justify-between">
@@ -24,7 +35,16 @@ export default function PreviewPlayer({ format, canvasRef, time, total, playing,
       </div>
       <div className="mt-4 flex justify-center">
         <div className={`w-full overflow-hidden bg-black shadow-2xl ${tall ? 'max-w-[280px] rounded-[28px] border-[8px] border-slate-800' : 'rounded-xl border-4 border-slate-800'}`}>
-          <canvas ref={canvasRef} width={format.width} height={format.height} className="block w-full" style={{ aspectRatio: `${format.width} / ${format.height}` }} aria-label="Preview of your story" />
+          <canvas
+            ref={canvasRef} width={format.width} height={format.height}
+            className={`block w-full ${onDrag && !disabled ? 'cursor-grab touch-none active:cursor-grabbing' : ''}`}
+            style={{ aspectRatio: `${format.width} / ${format.height}` }}
+            aria-label={onDrag ? 'Preview of your story; drag to move the picture' : 'Preview of your story'}
+            onPointerDown={(event) => { if (!onDrag || disabled) return; drag.current = { x: event.clientX, y: event.clientY }; event.currentTarget.setPointerCapture(event.pointerId); }}
+            onPointerMove={(event) => move(event, false)}
+            onPointerUp={(event) => move(event, true)}
+            onPointerCancel={(event) => move(event, true)}
+          />
         </div>
       </div>
       <div className="mt-4 flex items-center gap-3">

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AccountStatus, DownloadItem } from '../../types';
 import { createProject, type Id, type Project } from '../../lib/editor/model';
 import { loadMediaFiles } from '../../lib/editor/persist';
+import { setFraming } from '../../lib/editor/ops';
 import { duration } from '../../lib/editor/timeline';
 import { SequencePlayer } from '../../lib/render/sequencePlayer';
 import type { AspectId } from '../../lib/render/layout';
@@ -51,7 +52,7 @@ const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement && (target.isContentEditable || target.tagName === 'TEXTAREA' || (target.tagName === 'INPUT' && (target as HTMLInputElement).type !== 'range' && (target as HTMLInputElement).type !== 'checkbox'));
 
 function Workspace({ accounts, onClose }: { accounts: AccountStatus | null; onClose: () => void }) {
-  const { project, format, undo, redo, mediaUrl, notify } = useEditor();
+  const { project, format, apply, seal, undo, redo, mediaUrl, notify } = useEditor();
   // A reopened project starts where the clips are.
   const [step, setStep] = useState(() => (project.story.length ? 2 : 1));
   const [selectedId, setSelectedId] = useState<Id | null>(null);
@@ -114,6 +115,19 @@ function Workspace({ accounts, onClose }: { accounts: AccountStatus | null; onCl
   const seek = useCallback((t: number) => { requestAnimationFrame(() => void player?.seek(t)); }, [player]);
   const toggle = () => { if (!player) return; if (player.isPlaying) player.pause(); else void player.play(); };
 
+  // In step 3, dragging the preview moves a filled clip's picture (pan -1..1 across the overflow).
+  const dragStart = useRef<{ clipId: Id; panX: number; panY: number } | null>(null);
+  const selectedClip = project.story.find((clip) => clip.id === selectedId);
+  const onDrag = step === 3 && selectedClip?.framing.mode === 'fill' ? (dx: number, dy: number, done: boolean) => {
+    const framing = selectedClip.framing;
+    if (framing.mode !== 'fill') return;
+    if (!dragStart.current || dragStart.current.clipId !== selectedClip.id) dragStart.current = { clipId: selectedClip.id, panX: framing.panX, panY: framing.panY };
+    const start = dragStart.current;
+    const clampPan = (value: number) => Math.max(-1, Math.min(1, value));
+    apply((p) => setFraming(p, selectedClip.id, { ...framing, panX: clampPan(start.panX + dx * 2), panY: clampPan(start.panY + dy * 2) }), 'Move picture', `pan:${selectedClip.id}`);
+    if (done) { dragStart.current = null; seal(); }
+  } : undefined;
+
   return (
     <div className="min-h-[calc(100vh-5rem)] w-full">
       <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-6 lg:px-8">
@@ -135,7 +149,7 @@ function Workspace({ accounts, onClose }: { accounts: AccountStatus | null; onCl
           )}
         </section>
         <aside className="space-y-4 lg:sticky lg:top-20 lg:col-span-5">
-          <PreviewPlayer format={format} canvasRef={setCanvas} time={time} total={total} playing={playing} disabled={exporting} onToggle={toggle} onSeek={seek} />
+          <PreviewPlayer format={format} canvasRef={setCanvas} time={time} total={total} playing={playing} disabled={exporting} onToggle={toggle} onSeek={seek} onDrag={onDrag} />
         </aside>
       </div>
     </div>

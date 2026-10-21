@@ -22,8 +22,10 @@ const TRANSITIONS: Array<{ id: string; label: string; transition: Transition }> 
   { id: 'dissolve', label: 'Blend from the last clip', transition: { kind: 'dissolve', duration: 1 } },
 ];
 
+const fillOf = (framing: Framing) => (framing.mode === 'fill' ? framing : { mode: 'fill' as const, zoom: 1, panX: 0, panY: 0 });
+
 export default function ClipPanel({ clip, index }: { clip: StoryClip; index: number }) {
-  const { project, apply } = useEditor();
+  const { project, apply, seal } = useEditor();
   const current = framingPreset(clip.framing);
 
   const applyToAll = () => apply(
@@ -40,6 +42,18 @@ export default function ClipPanel({ clip, index }: { clip: StoryClip; index: num
             <button key={choice.id} type="button" className={chip(current === choice.id)} aria-pressed={current === choice.id} onClick={() => apply((p) => setFraming(p, clip.id, choice.framing), 'Change framing')}>{choice.label}</button>
           ))}
         </div>
+        {clip.framing.mode === 'fill' && (
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[var(--text-2)]">
+            <label className="flex items-center gap-2">
+              Zoom {clip.framing.zoom.toFixed(1)}×
+              <input className="w-36 accent-indigo-500" type="range" min={1} max={2.5} step={0.05} value={clip.framing.zoom} aria-label="Zoom in"
+                onChange={(event) => { const zoom = Number(event.target.value); apply((p) => setFraming(p, clip.id, { ...fillOf(clip.framing), zoom }), 'Zoom', `zoom:${clip.id}`); }}
+                onPointerUp={seal} onKeyUp={seal} onBlur={seal} />
+            </label>
+            <span>Drag the preview to move the picture.</span>
+            {current === 'custom' && <button type="button" className="font-semibold text-indigo-500 hover:underline" onClick={() => apply((p) => setFraming(p, clip.id, panPresetFraming('center')), 'Reset framing')}>Reset</button>}
+          </div>
+        )}
       </div>
       <div>
         <h3 className="text-sm font-semibold">Look</h3>
